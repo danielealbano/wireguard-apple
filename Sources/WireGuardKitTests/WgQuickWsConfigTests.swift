@@ -166,7 +166,12 @@ class WgQuickWsConfigTests: XCTestCase {
     func test_asWgQuickConfig_udpPeerUnchanged() throws {
         let config = try parse(peerLines: ["Endpoint = 192.0.2.1:51820", "AllowedIPs = 0.0.0.0/0"])
 
-        XCTAssertFalse(config.asWgQuickConfig().contains("WS"))
+        // Match key positions only: the randomized base64 key values can legitimately
+        // contain the letters "WS".
+        let emittedKeys = config.asWgQuickConfig().split(whereSeparator: \.isNewline).map { line in
+            line.prefix { $0 != "=" && $0 != " " }
+        }
+        XCTAssertFalse(emittedKeys.contains { $0.hasPrefix("WS") })
     }
 
     func test_parse_caseInsensitiveKeysAndValues() throws {
