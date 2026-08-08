@@ -27,6 +27,8 @@ You MUST ALWAYS read these before ANY work, in this order:
    NETunnelProviderManager, Keychain), the tunnel up/down flow through the Network Extension +
    WireGuardAdapter + cgo bridge, the network-path-change handling, and the config data model
    (with Mermaid charts).
+3. **`docs/WORK_INDEX.md`** — the high-level work index: prerequisites, the WebSocket work items,
+   inherited debt, and the open decisions gating them.
 
 You MUST ALSO follow, per the Rule Map below: `agent.md`, `development_pipeline.md`, `swift.md`
 (all Swift code), `go.md` (the WireGuardKitGo bridge), `apple.md` (Xcode/platform/signing), and

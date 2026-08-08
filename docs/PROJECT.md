@@ -231,6 +231,8 @@ Adding any harness is a tooling decision that requires explicit approval (see
   wg-quick parsing, UAPI generation, and both platforms' editors with the per-peer WebSocket
   surface (byte-compatible with the sibling `wireguard-tools` fork), keeping full parity with the
   existing UDP behavior on iOS AND macOS. Execution scope and sequencing are a pending discussion.
+- The high-level work breakdown (prerequisites, work items, inherited debt, open decisions) is
+  tracked in `WORK_INDEX.md`.
 
 ## License
 
