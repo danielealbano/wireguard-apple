@@ -2,6 +2,7 @@
 // Copyright © 2018-2023 WireGuard LLC. All Rights Reserved.
 
 import UIKit
+import UniformTypeIdentifiers
 
 protocol TunnelEditTableViewControllerDelegate: AnyObject {
     func tunnelSaved(tunnel: TunnelContainer)
@@ -37,11 +38,18 @@ class TunnelEditTableViewController: UITableViewController {
         [.addresses, .listenPort, .mtu, .dns]
     ]
 
-    let peerFields: [TunnelViewModel.PeerField] = [
-        .publicKey, .preSharedKey, .endpoint,
-        .allowedIPs, .excludePrivateIPs, .persistentKeepAlive,
-        .deletePeer
-    ]
+    func peerFieldsToShow(for peerData: TunnelViewModel.PeerData) -> [TunnelViewModel.PeerField] {
+        var fields: [TunnelViewModel.PeerField] = [.publicKey, .preSharedKey, .endpoint, .wsMode]
+        if !peerData[.wsMode].isEmpty {
+            fields.append(contentsOf: TunnelViewModel.PeerData.wsParameterFields)
+        }
+        fields.append(.allowedIPs)
+        if peerData.shouldAllowExcludePrivateIPsControl {
+            fields.append(.excludePrivateIPs)
+        }
+        fields.append(contentsOf: [.persistentKeepAlive, .deletePeer])
+        return fields
+    }
 
     let onDemandFields: [ActivateOnDemandViewModel.OnDemandField] = [
         .nonWiFiInterface,
@@ -54,6 +62,8 @@ class TunnelEditTableViewController: UITableViewController {
     let tunnelViewModel: TunnelViewModel
     var onDemandViewModel: ActivateOnDemandViewModel
     private var sections = [Section]()
+    private var pendingWsFilePeer: TunnelViewModel.PeerData?
+    private var pendingWsFileField: TunnelViewModel.PeerField?
 
     // Use this initializer to edit an existing tunnel.
     init(tunnelsManager: TunnelsManager, tunnel: TunnelContainer) {
@@ -157,8 +167,7 @@ extension TunnelEditTableViewController {
         case .interface:
             return interfaceFieldsBySection[section].count
         case .peer(let peerData):
-            let peerFieldsToShow = peerData.shouldAllowExcludePrivateIPsControl ? peerFields : peerFields.filter { $0 != .excludePrivateIPs }
-            return peerFieldsToShow.count
+            return peerFieldsToShow(for: peerData).count
         case .addPeer:
             return 1
         case .onDemand:
@@ -267,7 +276,8 @@ extension TunnelEditTableViewController {
                 let isAllowedIPsChanged = self.tunnelViewModel.updateDNSServersInAllowedIPsIfRequired(oldDNSServers: oldValue, newDNSServers: newValue)
                 if isAllowedIPsChanged {
                     let section = self.sections.firstIndex { if case .peer = $0 { return true } else { return false } }
-                    if let section = section, let row = self.peerFields.firstIndex(of: .allowedIPs) {
+                    if let section = section, case .peer(let peerData) = self.sections[section],
+                       let row = self.peerFieldsToShow(for: peerData).firstIndex(of: .allowedIPs) {
                         self.tableView.reloadRows(at: [IndexPath(row: row, section: section)], with: .none)
                     }
                 }
@@ -292,17 +302,90 @@ extension TunnelEditTableViewController {
     }
 
     private func peerCell(for tableView: UITableView, at indexPath: IndexPath, with peerData: TunnelViewModel.PeerData) -> UITableViewCell {
-        let peerFieldsToShow = peerData.shouldAllowExcludePrivateIPsControl ? peerFields : peerFields.filter { $0 != .excludePrivateIPs }
-        let field = peerFieldsToShow[indexPath.row]
+        let field = peerFieldsToShow(for: peerData)[indexPath.row]
 
         switch field {
         case .deletePeer:
             return deletePeerCell(for: tableView, at: indexPath, peerData: peerData, field: field)
         case .excludePrivateIPs:
             return excludePrivateIPsCell(for: tableView, at: indexPath, peerData: peerData, field: field)
+        case .wsMode:
+            return wsModeCell(for: tableView, at: indexPath, peerData: peerData, field: field)
+        case .wsMask, .wsTlsInsecure:
+            return wsSwitchCell(for: tableView, at: indexPath, peerData: peerData, field: field)
+        case .wsTlsCa, .wsTlsCert, .wsTlsKey:
+            return wsFileCell(for: tableView, at: indexPath, peerData: peerData, field: field)
         default:
             return peerFieldKeyValueCell(for: tableView, at: indexPath, peerData: peerData, field: field)
         }
+    }
+
+    private func wsModeCell(for tableView: UITableView, at indexPath: IndexPath, peerData: TunnelViewModel.PeerData, field: TunnelViewModel.PeerField) -> UITableViewCell {
+        let cell: ChevronCell = tableView.dequeueReusableCell(for: indexPath)
+        cell.message = field.localizedUIString
+        cell.detailMessage = wsModeLocalizedDescription(peerData[.wsMode])
+        return cell
+    }
+
+    private func wsModeLocalizedDescription(_ wireValue: String) -> String {
+        switch wireValue {
+        case WsMode.websocket.rawValue: return tr("tunnelPeerWsModeWebsocket")
+        case WsMode.wstunnel.rawValue: return tr("tunnelPeerWsModeWstunnel")
+        default: return tr("tunnelPeerWsModeNone")
+        }
+    }
+
+    private func wsSwitchCell(for tableView: UITableView, at indexPath: IndexPath, peerData: TunnelViewModel.PeerData, field: TunnelViewModel.PeerField) -> UITableViewCell {
+        let cell: SwitchCell = tableView.dequeueReusableCell(for: indexPath)
+        cell.message = field.localizedUIString
+        cell.isOn = peerData[field] == "true"
+        cell.onSwitchToggled = { [weak peerData] isOn in
+            peerData?[field] = isOn ? "true" : ""
+        }
+        return cell
+    }
+
+    private func wsFileCell(for tableView: UITableView, at indexPath: IndexPath, peerData: TunnelViewModel.PeerData, field: TunnelViewModel.PeerField) -> UITableViewCell {
+        let cell: ChevronCell = tableView.dequeueReusableCell(for: indexPath)
+        cell.message = field.localizedUIString
+        let value = peerData[field]
+        cell.detailMessage = value.isEmpty ? tr("tunnelEditSelectFile") : (value as NSString).lastPathComponent
+        return cell
+    }
+
+    private func showWsModeActionSheet(for peerData: TunnelViewModel.PeerData, at indexPath: IndexPath) {
+        let alert = UIAlertController(title: tr("tunnelPeerWsMode"), message: nil, preferredStyle: .actionSheet)
+        let options: [(String, String)] = [
+            (tr("tunnelPeerWsModeNone"), ""),
+            (tr("tunnelPeerWsModeWebsocket"), WsMode.websocket.rawValue),
+            (tr("tunnelPeerWsModeWstunnel"), WsMode.wstunnel.rawValue)
+        ]
+        for (title, wireValue) in options {
+            alert.addAction(UIAlertAction(title: title, style: .default) { [weak self, weak peerData] _ in
+                guard let self = self, let peerData = peerData else { return }
+                peerData[.wsMode] = wireValue
+                if wireValue.isEmpty {
+                    // Back to UDP: drop the now-hidden WS parameter values, or save() would
+                    // reject them via the presence checks with no visible field to fix.
+                    peerData.clearWsParameterFields()
+                }
+                self.tableView.reloadSections(IndexSet(integer: indexPath.section), with: .fade)
+            })
+        }
+        alert.addAction(UIAlertAction(title: tr("actionCancel"), style: .cancel, handler: nil))
+        if let popoverPresentationController = alert.popoverPresentationController {
+            popoverPresentationController.sourceView = tableView.cellForRow(at: indexPath) ?? tableView
+            popoverPresentationController.sourceRect = (tableView.cellForRow(at: indexPath) ?? tableView).bounds
+        }
+        present(alert, animated: true)
+    }
+
+    private func showWsFilePicker(for peerData: TunnelViewModel.PeerData, field: TunnelViewModel.PeerField) {
+        pendingWsFilePeer = peerData
+        pendingWsFileField = field
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.item])
+        picker.delegate = self
+        present(picker, animated: true)
     }
 
     private func deletePeerCell(for tableView: UITableView, at indexPath: IndexPath, peerData: TunnelViewModel.PeerData, field: TunnelViewModel.PeerField) -> UITableViewCell {
@@ -322,7 +405,8 @@ extension TunnelEditTableViewController {
                 tableView.performBatchUpdates({
                     self.tableView.deleteSections(removedSectionIndices, with: .fade)
                     if shouldShowExcludePrivateIPs {
-                        if let row = self.peerFields.firstIndex(of: .excludePrivateIPs) {
+                        if let firstPeerData = self.tunnelViewModel.peersData.first,
+                           let row = self.peerFieldsToShow(for: firstPeerData).firstIndex(of: .excludePrivateIPs) {
                             let rowIndexPath = IndexPath(row: row, section: self.interfaceFieldsBySection.count /* First peer section */)
                             self.tableView.insertRows(at: [rowIndexPath], with: .fade)
                         }
@@ -341,7 +425,7 @@ extension TunnelEditTableViewController {
         cell.onSwitchToggled = { [weak self] isOn in
             guard let self = self else { return }
             peerData.excludePrivateIPsValueChanged(isOn: isOn, dnsServers: self.tunnelViewModel.interfaceData[.dns])
-            if let row = self.peerFields.firstIndex(of: .allowedIPs) {
+            if let row = self.peerFieldsToShow(for: peerData).firstIndex(of: .allowedIPs) {
                 self.tableView.reloadRows(at: [IndexPath(row: row, section: indexPath.section)], with: .none)
             }
         }
@@ -365,8 +449,16 @@ extension TunnelEditTableViewController {
         case .persistentKeepAlive:
             cell.placeholderText = tr("tunnelEditPlaceholderTextOff")
             cell.keyboardType = .numberPad
+        case .wstunnelTarget, .wsBearer:
+            cell.placeholderText = tr("tunnelEditPlaceholderTextOptional")
+            cell.keyboardType = .default
+        case .wsPingInterval, .wsBackoffMin, .wsBackoffMax:
+            cell.placeholderText = tr("tunnelEditPlaceholderTextAutomatic")
+            cell.keyboardType = .numberPad
         case .excludePrivateIPs, .deletePeer:
             cell.keyboardType = .default
+        case .wsMode, .wsMask, .wsTlsCa, .wsTlsCert, .wsTlsKey, .wsTlsInsecure:
+            fatalError()
         case .rxBytes, .txBytes, .lastHandshakeTime:
             fatalError()
         }
@@ -384,11 +476,15 @@ extension TunnelEditTableViewController {
 
                 let oldValue = peerData.shouldAllowExcludePrivateIPsControl
                 peerData[.allowedIPs] = value
-                if oldValue != peerData.shouldAllowExcludePrivateIPsControl, let row = self.peerFields.firstIndex(of: .excludePrivateIPs) {
+                // `.excludePrivateIPs` sits directly after `.allowedIPs` in the built list, so
+                // both the insert and the delete index derive from the current list.
+                if oldValue != peerData.shouldAllowExcludePrivateIPsControl,
+                   let allowedIPsRow = self.peerFieldsToShow(for: peerData).firstIndex(of: .allowedIPs) {
+                    let excludeRow = allowedIPsRow + 1
                     if peerData.shouldAllowExcludePrivateIPsControl {
-                        self.tableView.insertRows(at: [IndexPath(row: row, section: indexPath.section)], with: .fade)
+                        self.tableView.insertRows(at: [IndexPath(row: excludeRow, section: indexPath.section)], with: .fade)
                     } else {
-                        self.tableView.deleteRows(at: [IndexPath(row: row, section: indexPath.section)], with: .fade)
+                        self.tableView.deleteRows(at: [IndexPath(row: excludeRow, section: indexPath.section)], with: .fade)
                     }
                 }
 
@@ -412,11 +508,12 @@ extension TunnelEditTableViewController {
             let addedSectionIndices = self.appendEmptyPeer()
             tableView.performBatchUpdates({
                 tableView.insertSections(addedSectionIndices, with: .fade)
-                if shouldHideExcludePrivateIPs {
-                    if let row = self.peerFields.firstIndex(of: .excludePrivateIPs) {
-                        let rowIndexPath = IndexPath(row: row, section: self.interfaceFieldsBySection.count /* First peer section */)
-                        self.tableView.deleteRows(at: [rowIndexPath], with: .fade)
-                    }
+                // The control is no longer in the first peer's built list; it sat directly
+                // after `.allowedIPs`, so that index + 1 is the removed row.
+                if shouldHideExcludePrivateIPs, let firstPeerData = self.tunnelViewModel.peersData.first,
+                   let allowedIPsRow = self.peerFieldsToShow(for: firstPeerData).firstIndex(of: .allowedIPs) {
+                    let rowIndexPath = IndexPath(row: allowedIPsRow + 1, section: self.interfaceFieldsBySection.count /* First peer section */)
+                    self.tableView.deleteRows(at: [rowIndexPath], with: .fade)
                 }
             }, completion: nil)
         }
@@ -467,9 +564,17 @@ extension TunnelEditTableViewController {
 
 extension TunnelEditTableViewController {
     override func tableView(_ tableView: UITableView, willSelectRowAt indexPath: IndexPath) -> IndexPath? {
-        if case .onDemand = sections[indexPath.section], indexPath.row == 2 {
-            return indexPath
-        } else {
+        switch sections[indexPath.section] {
+        case .onDemand:
+            return indexPath.row == 2 ? indexPath : nil
+        case .peer(let peerData):
+            switch peerFieldsToShow(for: peerData)[indexPath.row] {
+            case .wsMode, .wsTlsCa, .wsTlsCert, .wsTlsKey:
+                return indexPath
+            default:
+                return nil
+            }
+        default:
             return nil
         }
     }
@@ -482,9 +587,64 @@ extension TunnelEditTableViewController {
             let ssidOptionVC = SSIDOptionEditTableViewController(option: onDemandViewModel.ssidOption, ssids: onDemandViewModel.selectedSSIDs)
             ssidOptionVC.delegate = self
             navigationController?.pushViewController(ssidOptionVC, animated: true)
+        case .peer(let peerData):
+            tableView.deselectRow(at: indexPath, animated: true)
+            switch peerFieldsToShow(for: peerData)[indexPath.row] {
+            case .wsMode:
+                showWsModeActionSheet(for: peerData, at: indexPath)
+            case .wsTlsCa, .wsTlsCert, .wsTlsKey:
+                showWsFilePicker(for: peerData, field: peerFieldsToShow(for: peerData)[indexPath.row])
+            default:
+                assertionFailure()
+            }
         default:
             assertionFailure()
         }
+    }
+}
+
+extension TunnelEditTableViewController: UIDocumentPickerDelegate {
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        let peerData = pendingWsFilePeer
+        let field = pendingWsFileField
+        pendingWsFilePeer = nil
+        pendingWsFileField = nil
+        guard let url = urls.first, let peerData = peerData, let field = field else { return }
+        // The picked URL can be a non-local file-provider item whose copy blocks on a download —
+        // never on the main thread (same pattern as TunnelImporter).
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = Result { try FileManager.importWsTlsFile(from: url) }
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                switch result {
+                case .success(let destination):
+                    peerData[field] = destination.path
+                    self.tableView.reloadData()
+                case .failure(let error):
+                    self.showWsFileImportError(error)
+                }
+            }
+        }
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        pendingWsFilePeer = nil
+        pendingWsFileField = nil
+    }
+
+    private func showWsFileImportError(_ error: Error) {
+        // Shared code stays tr()-free (the NE must not see it), so the localized mapping
+        // lives here: surface the underlying Cocoa error's localized message.
+        let message: String
+        switch error {
+        case FileManager.WsTlsImportError.noAppGroupContainer:
+            message = tr("alertWsFileImportFailedNoContainerMessage")
+        case FileManager.WsTlsImportError.copyFailed(let underlyingError):
+            message = tr(format: "alertWsFileImportFailedMessage (%@)", underlyingError.localizedDescription)
+        default:
+            message = tr(format: "alertWsFileImportFailedMessage (%@)", error.localizedDescription)
+        }
+        ErrorPresenter.showErrorAlert(title: tr("alertWsFileImportFailedTitle"), message: message, from: self)
     }
 }
 

@@ -39,6 +39,40 @@ extension FileManager {
         return sharedFolderURL?.appendingPathComponent("login-helper-timestamp.bin")
     }
 
+    static var wsTlsDirectoryURL: URL? {
+        return sharedFolderURL?.appendingPathComponent("ws-tls", isDirectory: true)
+    }
+
+    enum WsTlsImportError: Error {
+        case noAppGroupContainer
+        case copyFailed(Error)
+    }
+
+    static func importWsTlsFile(from url: URL) throws -> URL {
+        guard let directory = wsTlsDirectoryURL else { throw WsTlsImportError.noAppGroupContainer }
+        let sanitized = url.lastPathComponent.map { character -> Character in
+            return character.isLetter || character.isNumber || character == "." || character == "_" || character == "-" ? character : "_"
+        }
+        let fileName = sanitized.isEmpty ? "ws-tls" : String(sanitized)
+        let destination = directory.appendingPathComponent(fileName)
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer {
+            if accessed {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.copyItem(at: url, to: destination)
+        } catch {
+            throw WsTlsImportError.copyFailed(error)
+        }
+        return destination
+    }
+
     static func deleteFile(at url: URL) -> Bool {
         do {
             try FileManager.default.removeItem(at: url)
