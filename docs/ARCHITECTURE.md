@@ -76,7 +76,7 @@ sequenceDiagram
     WGA->>OS: setTunnelNetworkSettings<br/>(addresses, routes, DNS, MTU - 5s timeout guard)
     WGA->>WGA: locate utun fd (getpeername scan)
     WGA->>Go: wgTurnOn(uapiConfig, tunFd)
-    Go->>Go: CreateTUNFromFile + NewStdNetBind<br/>IpcSet + device.Up
+    Go->>Go: CreateTUNFromFile + NewMultiplexBind<br/>IpcSet + device.Up
     Go-->>WGA: non-negative handle
     WGA-->>PTP: success
     PTP-->>OS: completionHandler(nil)
@@ -119,6 +119,12 @@ Not platform-divergent (applies on BOTH platforms, unconditionally): interface-a
 prefixes are clamped to /120 in `PacketTunnelSettingsGenerator.addresses()` (the code comment
 attributes the motivation to the iOS networking stack); allowed-IPs routes use the configured
 prefix as-is.
+
+WebSocket/wstunnel peers ride the SAME per-platform path-change semantics: `wgBumpSockets` →
+`device.BindUpdate()` closes and reopens the multiplex bind (UDP rebind + WS re-dial), and the
+iOS endpoint re-resolution path re-sends each dialing WS peer's full `ws_*` block together with
+the re-resolved `endpoint=` (the fork ignores a WS endpoint update that arrives without
+`ws_url`; on resolution failure nothing is sent for that peer, matching UDP behavior).
 
 ## 4. Config data model & serialization surfaces
 
@@ -169,17 +175,30 @@ classDiagram
     PeerConfiguration --> BaseKey : PublicKey / PreSharedKey
 ```
 
-Three serialization surfaces, all of which MUST stay interoperable with standard WireGuard:
+The model additionally carries the per-peer WebSocket surface (`WsMode`, `WsUrl`,
+`wstunnelTarget`, `wsBearer`, `wsMask`, `wsTlsCa`/`wsTlsCert`/`wsTlsKey`, `wsTlsInsecure`,
+`wsPingIntervalMs`/`wsBackoffMinMs`/`wsBackoffMaxMs`); a dialing WS peer's routable `endpoint` is
+derived from the URL's host:port.
+
+Three serialization surfaces, all of which MUST stay interoperable with standard WireGuard (and,
+for the WS keys, byte-compatible with the sibling `wireguard-tools` fork):
 
 1. **wg-quick text** (`TunnelConfiguration+WgQuickConfig`, in `Sources/Shared`) — user-facing
    import/export and the Keychain-stored form. Interface keys: `PrivateKey`, `ListenPort`,
-   `Address`, `DNS`, `MTU`; peer keys: `PublicKey`, `PresharedKey`, `AllowedIPs`, `Endpoint`,
-   `PersistentKeepalive`. Unknown keys are parse errors (the macOS raw-text editor's
-   `highlighter.c` enforces the same key set for syntax highlighting).
+   `Address`, `DNS`, `MTU`; peer keys: `PublicKey`, `PresharedKey`, `AllowedIPs`, `Endpoint`
+   (`host:port` or `ws(s)://host:port[/path]`), `PersistentKeepalive`, and the eleven `WS*` keys
+   (`WSMode`, `WSTunnelTarget`, `WSBearer`, `WSMask`, `WSTLSCA`, `WSTLSCert`, `WSTLSKey`,
+   `WSTLSInsecure`, `WSPingInterval`, `WSBackoffMin`, `WSBackoffMax`). Unknown keys are parse
+   errors (the macOS raw-text editor's `highlighter.c` enforces the same key set — and the same
+   `ws(s)://` URL acceptance set — for syntax highlighting; an error span blocks saving).
 2. **UAPI generation** (`PacketTunnelSettingsGenerator`) — the `key=value` form passed to
-   `wgTurnOn`/`wgSetConfig` (hex keys, resolved endpoints, `replace_peers`/`replace_allowed_ips`).
+   `wgTurnOn`/`wgSetConfig` (hex keys, resolved endpoints, `replace_peers`/`replace_allowed_ips`;
+   `transport=` on every peer, `ws_url`/`wstunnel_target`/`ws_bearer`/`ws_mask`/`ws_tls_*`/
+   `ws_ping_interval`/`ws_backoff_*` for WS peers).
 3. **UAPI readback** (`TunnelConfiguration+UapiConfig`) — parses `wgGetConfig` output (adds
-   `rx_bytes`, `tx_bytes`, `last_handshake_time_*`, `protocol_version`) to show runtime stats.
+   `rx_bytes`, `tx_bytes`, `last_handshake_time_*`, `protocol_version`, and round-trips
+   `transport=` — emitted for EVERY peer, also plain UDP — plus the `ws_*` keys) to show runtime
+   stats.
 
 Storage: the `NETunnelProviderManager` entry holds `providerBundleIdentifier`
 (`<appId>.network-extension`), `passwordReference` (Keychain persistent ref to the wg-quick text),
@@ -203,8 +222,11 @@ flowchart LR
 
 The Makefile takes `ARCHS`, `PLATFORM_NAME`, `SDKROOT`, and the deployment-target flag from Xcode
 (with standalone defaults: `macosx`, `x86_64 arm64`), so the same `make` works inside Xcode and from
-the CLI. The boottime patch makes the Go runtime clock keep advancing across device sleep — without
-it WireGuard timers misbehave after wake.
+the CLI. The toolchain is a pinned **Go 1.26.5** download (SHA256-verified, cached in the
+gitignored `Sources/WireGuardKitGo/.cache/` so `clean` rebuilds don't re-download) with
+`GOTOOLCHAIN=local`, so Go's automatic toolchain switching can never bypass the patched GOROOT.
+The boottime patch makes the Go runtime clock keep advancing across device sleep — without it
+WireGuard timers misbehave after wake.
 
 ## 6. Logging & diagnostics
 
@@ -215,15 +237,17 @@ it WireGuard timers misbehave after wake.
 - NE activation failures reach the app via `last-error.txt` (activation attempt id + error code)
   in the app group container, because the OS reports only generic failure.
 
-## 7. Where the WebSocket/wstunnel work will land (ROADMAP)
+## 7. Where the WebSocket/wstunnel work landed (DELIVERED — plan 1)
 
-Per `PROJECT.md` (goal; execution pending discussion), the touch-points identified so far — kept
-here so the map stays current:
+Per `PROJECT.md`, delivered by `docs/plans/1_websocket_wstunnel_transport_20260808170409.md`:
 
-| Layer | Touch-point |
+| Layer | Delivered touch-point |
 |---|---|
-| Go bridge | `go.mod` `replace` onto the sibling `wireguard-go` fork; build the multiplex (UDP + WebSocket) bind in `api-apple.go` instead of `conn.NewStdNetBind()`; Go toolchain/pin reconciliation in the `Makefile` |
-| Config model | per-peer WebSocket surface on `PeerConfiguration` + `Endpoint` handling, byte-compatible with the sibling `wireguard-tools` fork |
-| Serialization | `TunnelConfiguration+WgQuickConfig` (parse/serialize), `PacketTunnelSettingsGenerator` (UAPI), `TunnelConfiguration+UapiConfig` (readback), `highlighter.c` (macOS editor key set) |
-| UI | `TunnelViewModel` peer fields + both platforms' editors |
-| Parity | preserve the per-platform path-change semantics (§3) for WebSocket peers on BOTH platforms |
+| Go bridge | `go.mod` `replace` onto the sibling `wireguard-go` fork `v1.3.0`; `conn.NewMultiplexBind` (UDP + WebSocket) in `api-apple.go`; pinned Go 1.26.5 toolchain + refreshed boottime patch in the `Makefile`; T1 `go vet` debt fixed |
+| Config model | per-peer WebSocket surface on `PeerConfiguration` (`WsMode`/`WsUrl` + nine parameters) + `ws(s)://` `Endpoint` handling, byte-compatible with the sibling `wireguard-tools` fork |
+| Serialization | `TunnelConfiguration+WgQuickConfig` (parse/serialize + validation), `PacketTunnelSettingsGenerator` (UAPI incl. `transport=`), `TunnelConfiguration+UapiConfig` (readback), `highlighter.c` (macOS editor key set) |
+| UI | `TunnelViewModel` peer fields, the iOS field editor (mode sheet, switches, TLS document picker into the app-group `ws-tls/` folder) + detail rows, macOS detail rows + highlighter |
+| Parity | per-platform path-change semantics (§3) preserved for WebSocket peers on BOTH platforms |
+| Tests | `WireGuardKitTests` unit bundle (model, serialization, view model, highlighter) |
+
+Remaining: on-device live-tunnel validation (Manual Test) once the ADP enrollment (P1) completes.

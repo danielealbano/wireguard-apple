@@ -22,8 +22,8 @@ fix bundled with the first touching change).
 Add per-peer WebSocket/wstunnel transport with **logical and functional parity with the existing
 UDP handling, on BOTH iOS and macOS**, consuming the sibling `danielealbano/wireguard-go` fork,
 with a config surface byte-compatible with the sibling `wireguard-tools` fork. Overall status:
-**NOT STARTED** — the execution plan (single plan vs. sequence, ordering) is decision D4. The
-high-level work items map onto the touch-points in `ARCHITECTURE.md` §7:
+**W1–W5 DELIVERED (plan 1, `docs/plans/1_websocket_wstunnel_transport_20260808170409.md`)**;
+W6 is PENDING P1 (ADP). The work items map onto the touch-points in `ARCHITECTURE.md` §7:
 
 | ID | Item | Scope |
 |---|---|---|
@@ -32,19 +32,19 @@ high-level work items map onto the touch-points in `ARCHITECTURE.md` §7:
 | W3 | Serialization surfaces | `TunnelConfiguration+WgQuickConfig` (parse/serialize), `PacketTunnelSettingsGenerator` (UAPI generation), `TunnelConfiguration+UapiConfig` (readback), `highlighter.c` (macOS raw-text editor key set) |
 | W4 | UI | `TunnelViewModel` peer fields + the iOS and macOS tunnel editors |
 | W5 | Behavior parity | Preserve the per-platform path-change semantics for WebSocket peers (macOS: socket bump; iOS: re-resolve / temporary shutdown), MTU and on-demand behavior, on BOTH platforms |
-| W6 | Validation | Manual test pass on both platforms against a live WireGuard/wstunnel server, including network-switch scenarios (no automated harness exists — see D2/D3) |
+| W6 | Validation | **PENDING P1 (ADP)** — manual test pass on both platforms against a live WireGuard/wstunnel server, including network-switch scenarios (steps in plan 1 US9) |
 
 ## 3. Inherited debt
 
 | ID | Item | Status | Notes |
 |---|---|---|---|
-| T1 | 3× `go vet` findings in `api-apple.go` | DEBT | Unbuffered `os.Signal` channel + 2× `unsafe.Pointer` misuse, inherited from upstream (verified 2026-08-08); MUST be fixed with the first change touching the Go bridge (per `project.md` → Standard Commands) |
+| T1 | 3× `go vet` findings in `api-apple.go` | **FIXED (plan 1)** | Buffered signal channel + `unsafe.Pointer` parameters in `wgSetLogger` (root-cause fixes, ABI unchanged) |
 
 ## 4. Open decisions
 
 | ID | Decision | Status | Notes |
 |---|---|---|---|
 | D1 | Fork identity / rebranding | PENDING DECISION | "WireGuard" is a registered trademark of Jason A. Donenfeld; a distinct product name, bundle identifiers, icons, and distribution channel for the fork have not been decided |
-| D2 | Test harness | PENDING DECISION | The repo has no automated tests; adding any harness (XCTest targets, Go tests) is a tooling decision requiring explicit approval |
+| D2 | Test harness | **RESOLVED (plan 1)** | User approved; the `WireGuardKitTests` unit bundle exists. Any FURTHER harness (UI tests, Go tests, CI) still requires explicit approval |
 | D3 | CI | PENDING DECISION | No CI exists; adding workflows is a tooling decision requiring explicit approval |
-| D4 | Execution plan for the WebSocket work | PENDING DECISION | How W1–W6 are cut into pipeline plan(s), their ordering, and the end-to-end validation approach — the pending discussion that gates section 2 |
+| D4 | Execution plan for the WebSocket work | **RESOLVED** | Single plan (plan 1, `docs/plans/1_websocket_wstunnel_transport_20260808170409.md`), implemented end to end |
