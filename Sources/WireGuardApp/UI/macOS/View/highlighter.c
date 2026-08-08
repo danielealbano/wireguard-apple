@@ -312,6 +312,36 @@ static bool is_valid_endpoint(string_span_t s)
 	return false;
 }
 
+static bool is_valid_ws_mode(string_span_t s)
+{
+	return is_caseless_same(s, "websocket") || is_caseless_same(s, "wstunnel");
+}
+
+static bool is_valid_ws_bool(string_span_t s)
+{
+	return is_same(s, "true") || is_same(s, "false");
+}
+
+static bool is_valid_ws_millis(string_span_t s)
+{
+	return is_valid_uint(s, false, 0, 4294967295U);
+}
+
+static bool is_valid_ws_url(string_span_t s)
+{
+	size_t authority_start, authority_len = 0;
+
+	if (s.len > 5 && is_caseless_same((string_span_t){ s.s, 5 }, "ws://"))
+		authority_start = 5;
+	else if (s.len > 6 && is_caseless_same((string_span_t){ s.s, 6 }, "wss://"))
+		authority_start = 6;
+	else
+		return false;
+	while (authority_start + authority_len < s.len && s.s[authority_start + authority_len] != '/')
+		++authority_len;
+	return is_valid_endpoint((string_span_t){ s.s + authority_start, authority_len });
+}
+
 static bool is_valid_network(string_span_t s)
 {
 	for (size_t i = 0; i < s.len; ++i) {
@@ -357,6 +387,17 @@ enum field {
 	AllowedIPs,
 	Endpoint,
 	PersistentKeepalive,
+	WSMode,
+	WSTunnelTarget,
+	WSBearer,
+	WSMask,
+	WSTLSCA,
+	WSTLSCert,
+	WSTLSKey,
+	WSTLSInsecure,
+	WSPingInterval,
+	WSBackoffMin,
+	WSBackoffMax,
 
 	Invalid
 };
@@ -383,6 +424,17 @@ static enum field get_field(string_span_t s)
 	check_enum(AllowedIPs);
 	check_enum(Endpoint);
 	check_enum(PersistentKeepalive);
+	check_enum(WSMode);
+	check_enum(WSTunnelTarget);
+	check_enum(WSBearer);
+	check_enum(WSMask);
+	check_enum(WSTLSCA);
+	check_enum(WSTLSCert);
+	check_enum(WSTLSKey);
+	check_enum(WSTLSInsecure);
+	check_enum(WSPingInterval);
+	check_enum(WSBackoffMin);
+	check_enum(WSBackoffMax);
 #ifndef MOBILE_WGQUICK_SUBSET
 	check_enum(FwMark);
 	check_enum(Table);
@@ -548,6 +600,10 @@ static void highlight_value(struct highlight_span_array *ret, const string_span_
 	case Endpoint: {
 		size_t colon;
 
+		if (is_valid_ws_url(s)) {
+			append_highlight_span(ret, parent.s, s, HighlightHost);
+			break;
+		}
 		if (!is_valid_endpoint(s)) {
 			append_highlight_span(ret, parent.s, s, HighlightError);
 			break;
@@ -565,6 +621,27 @@ static void highlight_value(struct highlight_span_array *ret, const string_span_
 	case DNS:
 	case AllowedIPs:
 		highlight_multivalue(ret, parent, s, section);
+		break;
+	case WSMode:
+		append_highlight_span(ret, parent.s, s, is_valid_ws_mode(s) ? HighlightHost : HighlightError);
+		break;
+	case WSTunnelTarget:
+		append_highlight_span(ret, parent.s, s, is_valid_endpoint(s) ? HighlightHost : HighlightError);
+		break;
+	case WSBearer:
+	case WSTLSCA:
+	case WSTLSCert:
+	case WSTLSKey:
+		append_highlight_span(ret, parent.s, s, s.len ? HighlightHost : HighlightError);
+		break;
+	case WSMask:
+	case WSTLSInsecure:
+		append_highlight_span(ret, parent.s, s, is_valid_ws_bool(s) ? HighlightHost : HighlightError);
+		break;
+	case WSPingInterval:
+	case WSBackoffMin:
+	case WSBackoffMax:
+		append_highlight_span(ret, parent.s, s, is_valid_ws_millis(s) ? HighlightKeepalive : HighlightError);
 		break;
 	default:
 		append_highlight_span(ret, parent.s, s, HighlightError);
