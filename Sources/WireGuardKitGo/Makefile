@@ -69,6 +69,7 @@ endef
 $(foreach ARCH,$(ARCHS),$(eval $(call libwg-go-a,$(ARCH))))
 
 $(DESTDIR)/wireguard-go-version.h: go.mod
+	 @mkdir -p "$(DESTDIR)"
 	 sed -E -n 's/.*danielealbano\/wireguard-go +v([0-9][0-9.]*).*/#define WIREGUARD_GO_VERSION "\1"/p' "$<" > "$@.tmp"
 	 [ -s "$@.tmp" ]
 	 mv "$@.tmp" "$@"

@@ -150,23 +150,23 @@ verification + quality gates.
 
 ---
 
-## User Story 1 — Go bridge: fork pin, toolchain, multiplex bind, vet fixes `[ ]`
+## User Story 1 — Go bridge: fork pin, toolchain, multiplex bind, vet fixes `[x]`
 
 Why: everything downstream needs the fork's WS-capable core compiled into `libwg-go.a`, and T1
 must be fixed with the first bridge-touching change.
 
 Acceptance criteria (code-state — build/vet/tidy execution happens ONLY in the US9 gates):
-- `[ ]` `go.mod`/`go.sum` pin the fork exactly as specified (base + `replace` v1.3.0, `go 1.26.5`)
-- `[ ]` `wireguard.h` byte-identical (no ABI change)
-- `[ ]` the three T1 root causes are gone from `api-apple.go` (buffered signal channel,
+- `[x]` `go.mod`/`go.sum` pin the fork exactly as specified (base + `replace` v1.3.0, `go 1.26.5`)
+- `[x]` `wireguard.h` byte-identical (no ABI change)
+- `[x]` the three T1 root causes are gone from `api-apple.go` (buffered signal channel,
   `unsafe.Pointer` parameters) and `Up()`/bind errors are handled
-- `[ ]` the Makefile pins go1.26.5 (SHA256-verified, cached outside `BUILDDIR`,
+- `[x]` the Makefile pins go1.26.5 (SHA256-verified, cached outside `BUILDDIR`,
   `GOTOOLCHAIN=local`) and the boottime diff carries the refreshed go1.26.5 hunks
-- `[ ]` the version-header rule is the replace-aware sed with the `[ -s ]` guard
+- `[x]` the version-header rule is the replace-aware sed with the `[ -s ]` guard
 
-### Task 1.1 — `Sources/WireGuardKitGo/go.mod` + `go.sum` `[ ]`
+### Task 1.1 — `Sources/WireGuardKitGo/go.mod` + `go.sum` `[x]`
 
-- `[ ]` Action: modify `Sources/WireGuardKitGo/go.mod`:
+- `[x]` Action: modify `Sources/WireGuardKitGo/go.mod`:
 
 ```
 module golang.zx2c4.com/wireguard/apple
@@ -192,7 +192,7 @@ require (
 replace golang.zx2c4.com/wireguard => github.com/danielealbano/wireguard-go v1.3.0
 ```
 
-- `[ ]` Action: run `cd Sources/WireGuardKitGo && go mod tidy` (network; this generates `go.sum`
+- `[x]` Action: run `cd Sources/WireGuardKitGo && go mod tidy` (network; this generates `go.sum`
   — a source artifact, not a quality gate) and commit the regenerated `go.sum` together with
   `go.mod`. `go mod tidy` output is authoritative for the indirect block; if it settles different
   indirect pins than listed above, keep tidy's result and record the delta in `## Deviations`.
@@ -200,9 +200,9 @@ replace golang.zx2c4.com/wireguard => github.com/danielealbano/wireguard-go v1.3
 DoD: `go.mod` + `go.sum` committed together and consistent (tidy idempotence is re-verified as a
 US9 quality gate).
 
-### Task 1.2 — Makefile: pinned toolchain + patch flow + version header `[ ]`
+### Task 1.2 — Makefile: pinned toolchain + patch flow + version header `[x]`
 
-- `[ ]` Action: replace `Sources/WireGuardKitGo/Makefile` content:
+- `[x]` Action: replace `Sources/WireGuardKitGo/Makefile` content:
 
 ```make
 # SPDX-License-Identifier: MIT
@@ -297,13 +297,13 @@ loud build failure on EVERY build (a direct `> "$@"` would leave a stale empty t
 builds consider up to date); the rule no longer depends on the prepared GOROOT (it is pure
 `sed`), so app builds don't download Go just to stamp the version.
 
-- `[ ]` Action: modify `.gitignore` — append under the "Wireguard specific" section:
+- `[x]` Action: modify `.gitignore` — append under the "Wireguard specific" section:
 
 ```
 Sources/WireGuardKitGo/.cache/
 ```
 
-- `[ ]` Action: replace `Sources/WireGuardKitGo/goruntime-boottime-over-monotonic.diff` content
+- `[x]` Action: replace `Sources/WireGuardKitGo/goruntime-boottime-over-monotonic.diff` content
   (context refreshed for go1.26.5; `sys_darwin_amd64.s` no longer has the `PUSHQ BP`/`MOVQ SP, BP`
   prologue lines in `nanotime_trampoline`):
 
@@ -349,9 +349,9 @@ DoD: Makefile and diff file content exactly as specified (pinned toolchain + `GO
 + refreshed hunks + replace-aware version sed with the `[ -s ]` guard). Build execution happens
 ONLY in the US9 quality gates.
 
-### Task 1.3 — `Sources/WireGuardKitGo/api-apple.go` `[ ]`
+### Task 1.3 — `Sources/WireGuardKitGo/api-apple.go` `[x]`
 
-- `[ ]` Action: replace file content (multiplex bind; T1 vet fixes: buffered signal channel +
+- `[x]` Action: replace file content (multiplex bind; T1 vet fixes: buffered signal channel +
   `unsafe.Pointer` parameters instead of `uintptr`; `Up()` error handled; error paths close the
   device (the previous `unix.Close(dupTunFd)` after `CreateTUNFromFile` succeeded was a
   double-close — the tun owns the fd); mutex-guarded handle map; replace-aware `wgVersion`):
@@ -634,19 +634,19 @@ the US9 quality gates.
 
 ---
 
-## User Story 2 — WireGuardKit config model: `WsMode`, `WsUrl`, peer fields, wg-quick surface `[ ]`
+## User Story 2 — WireGuardKit config model: `WsMode`, `WsUrl`, peer fields, wg-quick surface `[x]`
 
 Why: the byte-compatible config surface is the contract every other layer builds on.
 
 Acceptance criteria:
-- `[ ]` `ws(s)://` endpoints parse into `wsUrl` + routable `endpoint`; all 11 `WS*` keys parse
-- `[ ]` every validation rule from the verified contract enforced with a typed `ParseError`
-- `[ ]` `asWgQuickConfig()` round-trips WS peers byte-compatibly (URL verbatim, zero timings dropped)
-- `[ ]` the bearer value never appears in any error
+- `[x]` `ws(s)://` endpoints parse into `wsUrl` + routable `endpoint`; all 11 `WS*` keys parse
+- `[x]` every validation rule from the verified contract enforced with a typed `ParseError`
+- `[x]` `asWgQuickConfig()` round-trips WS peers byte-compatibly (URL verbatim, zero timings dropped)
+- `[x]` the bearer value never appears in any error
 
-### Task 2.1 — create `Sources/WireGuardKit/WsMode.swift` `[ ]`
+### Task 2.1 — create `Sources/WireGuardKit/WsMode.swift` `[x]`
 
-- `[ ]` Action: create:
+- `[x]` Action: create:
 
 ```swift
 // SPDX-License-Identifier: MIT
@@ -665,9 +665,9 @@ public enum WsMode: String, CaseIterable {
 }
 ```
 
-### Task 2.2 — create `Sources/WireGuardKit/WsUrl.swift` `[ ]`
+### Task 2.2 — create `Sources/WireGuardKit/WsUrl.swift` `[x]`
 
-- `[ ]` Action: create:
+- `[x]` Action: create:
 
 ```swift
 // SPDX-License-Identifier: MIT
@@ -734,9 +734,9 @@ extension WsUrl: Hashable {
 }
 ```
 
-### Task 2.3 — modify `Sources/WireGuardKit/PeerConfiguration.swift` `[ ]`
+### Task 2.3 — modify `Sources/WireGuardKit/PeerConfiguration.swift` `[x]`
 
-- `[ ]` Action: replace file content:
+- `[x]` Action: replace file content:
 
 ```swift
 // SPDX-License-Identifier: MIT
@@ -821,9 +821,9 @@ extension PeerConfiguration: Hashable {
 }
 ```
 
-### Task 2.4 — modify `Sources/Shared/Model/TunnelConfiguration+WgQuickConfig.swift` `[ ]`
+### Task 2.4 — modify `Sources/Shared/Model/TunnelConfiguration+WgQuickConfig.swift` `[x]`
 
-- `[ ]` Action: extend `ParseError` with the new cases (append after `multipleEntriesForKey`):
+- `[x]` Action: extend `ParseError` with the new cases (append after `multipleEntriesForKey`):
 
 ```swift
         case peerHasInvalidWsMode(String)
@@ -841,7 +841,7 @@ extension PeerConfiguration: Hashable {
         case peerHasWsKeyWithoutWsMode(String) // offending key (canonical spelling)
 ```
 
-- `[ ]` Action: extend `peerSectionKeys` in the parser:
+- `[x]` Action: extend `peerSectionKeys` in the parser:
 
 ```swift
                     let peerSectionKeys: Set<String> = ["publickey", "presharedkey", "allowedips", "endpoint", "persistentkeepalive",
@@ -849,7 +849,7 @@ extension PeerConfiguration: Hashable {
                                                        "wstlskey", "wstlsinsecure", "wspinginterval", "wsbackoffmin", "wsbackoffmax"]
 ```
 
-- `[ ]` Action: in `collate(peerAttributes:)`, replace the endpoint block and append WS parsing +
+- `[x]` Action: in `collate(peerAttributes:)`, replace the endpoint block and append WS parsing +
   validation before `return peer`:
 
 ```swift
@@ -903,7 +903,7 @@ extension PeerConfiguration: Hashable {
         return peer
 ```
 
-- `[ ]` Action: add the private helpers to the same extension:
+- `[x]` Action: add the private helpers to the same extension:
 
 ```swift
     private static func parseWsBoolean(_ attributes: [String: String], key: String) throws -> Bool {
@@ -962,7 +962,7 @@ extension PeerConfiguration: Hashable {
     }
 ```
 
-- `[ ]` Action: in `asWgQuickConfig()`, replace the peer `Endpoint` line and append the WS keys
+- `[x]` Action: in `asWgQuickConfig()`, replace the peer `Endpoint` line and append the WS keys
   after `PersistentKeepalive` (Android emission set; bearer last):
 
 ```swift
@@ -1014,19 +1014,19 @@ throws its specific typed error.
 
 ---
 
-## User Story 3 — UAPI generation and readback `[ ]`
+## User Story 3 — UAPI generation and readback `[x]`
 
 Why: the NE must speak the fork's UAPI (set) and survive its extended output (get) — including for
 pure-UDP tunnels, whose `wgGetConfig` output now contains `transport=udp`.
 
 Acceptance criteria:
-- `[ ]` `uapiConfiguration()` emits `transport=` for every peer and the `ws_*` block for WS peers
-- `[ ]` `endpointUapiConfiguration()` re-sends the full `ws_*` block with the re-resolved endpoint
-- `[ ]` readback accepts `transport` + all `ws_*` peer keys; UDP tunnels keep working
+- `[x]` `uapiConfiguration()` emits `transport=` for every peer and the `ws_*` block for WS peers
+- `[x]` `endpointUapiConfiguration()` re-sends the full `ws_*` block with the re-resolved endpoint
+- `[x]` readback accepts `transport` + all `ws_*` peer keys; UDP tunnels keep working
 
-### Task 3.1 — modify `Sources/WireGuardKit/PacketTunnelSettingsGenerator.swift` `[ ]`
+### Task 3.1 — modify `Sources/WireGuardKit/PacketTunnelSettingsGenerator.swift` `[x]`
 
-- `[ ]` Action: add the private WS-lines helper and wire it into both configuration builders:
+- `[x]` Action: add the private WS-lines helper and wire it into both configuration builders:
 
 ```swift
     private class func wsUapiConfiguration(for peer: PeerConfiguration) -> String {
@@ -1068,7 +1068,7 @@ Acceptance criteria:
     }
 ```
 
-- `[ ]` Action: in `uapiConfiguration()`, after `wgSettings.append("public_key=...")` insert:
+- `[x]` Action: in `uapiConfiguration()`, after `wgSettings.append("public_key=...")` insert:
 
 ```swift
             wgSettings.append("transport=\(peer.uapiTransport)\n")
@@ -1098,7 +1098,7 @@ Acceptance criteria:
   Context: the resolution-failure branch is NOT host-testable (`withReresolvedIP()` is a no-op on
   macOS) — it is covered by the Manual Test network-switch pass (US9).
 
-- `[ ]` Action: in `endpointUapiConfiguration()`, replace the endpoint-append block so the WS
+- `[x]` Action: in `endpointUapiConfiguration()`, replace the endpoint-append block so the WS
   block travels WITH the endpoint (the fork ignores an `endpoint=` for a WS peer that arrives
   without `ws_url`; on resolution failure nothing is sent for that peer, preserving the current
   UDP behavior):
@@ -1118,9 +1118,9 @@ Acceptance criteria:
 DoD: generated strings match the verified UAPI contract for UDP, dialing websocket, dialing
 wstunnel, and inbound websocket peers.
 
-### Task 3.2 — modify `Sources/WireGuardApp/Tunnel/TunnelConfiguration+UapiConfig.swift` `[ ]`
+### Task 3.2 — modify `Sources/WireGuardApp/Tunnel/TunnelConfiguration+UapiConfig.swift` `[x]`
 
-- `[ ]` Action: extend `peerSectionKeys`:
+- `[x]` Action: extend `peerSectionKeys`:
 
 ```swift
             let peerSectionKeys: Set<String> = ["public_key", "preshared_key", "allowed_ip", "endpoint", "persistent_keepalive_interval",
@@ -1129,7 +1129,7 @@ wstunnel, and inbound websocket peers.
                                                "ws_tls_key", "ws_tls_insecure", "ws_ping_interval", "ws_backoff_min", "ws_backoff_max"]
 ```
 
-- `[ ]` Action: in `collate(peerAttributes:)` append before `return peer` (the `endpoint=` line
+- `[x]` Action: in `collate(peerAttributes:)` append before `return peer` (the `endpoint=` line
   keeps populating `peer.endpoint` — for a WS peer it is the resolved dial target):
 
 ```swift
@@ -1196,18 +1196,18 @@ DoD: `init(fromUapiConfig:)` parses fork-shaped output for UDP and WS peers (inc
 
 ---
 
-## User Story 4 — `TunnelViewModel`: WS peer fields, validation, strings `[ ]`
+## User Story 4 — `TunnelViewModel`: WS peer fields, validation, strings `[x]`
 
 Why: both platforms' detail views and the iOS editor are driven by this field model.
 
 Acceptance criteria:
-- `[ ]` all 11 WS fields round-trip scratchpad ⇄ `PeerConfiguration`
-- `[ ]` `save()` enforces the full validation contract with per-field errors + localized messages
-- `[ ]` endpoint field carries the `ws(s)://` URL verbatim for WS peers
+- `[x]` all 11 WS fields round-trip scratchpad ⇄ `PeerConfiguration`
+- `[x]` `save()` enforces the full validation contract with per-field errors + localized messages
+- `[x]` endpoint field carries the `ws(s)://` URL verbatim for WS peers
 
-### Task 4.1 — modify `Sources/WireGuardApp/UI/TunnelViewModel.swift` `[ ]`
+### Task 4.1 — modify `Sources/WireGuardApp/UI/TunnelViewModel.swift` `[x]`
 
-- `[ ]` Action: extend `PeerField` (new cases after `.persistentKeepAlive`) and its
+- `[x]` Action: extend `PeerField` (new cases after `.persistentKeepAlive`) and its
   `localizedUIString`:
 
 ```swift
@@ -1238,7 +1238,7 @@ Acceptance criteria:
             case .wsBackoffMax: return tr("tunnelPeerWsBackoffMax")
 ```
 
-- `[ ]` Action: in `PeerData.createScratchPad(from:)`, replace the endpoint line and add the WS
+- `[x]` Action: in `PeerData.createScratchPad(from:)`, replace the endpoint line and add the WS
   fields (booleans stored as `"true"`/absent, timings as decimal strings, mode as wire format):
 
 ```swift
@@ -1282,7 +1282,7 @@ Acceptance criteria:
             }
 ```
 
-- `[ ]` Action: in `PeerData.save()`, replace the endpoint block and add WS parsing + cross-field
+- `[x]` Action: in `PeerData.save()`, replace the endpoint block and add WS parsing + cross-field
   validation before `guard errorMessages.isEmpty`:
 
 ```swift
@@ -1380,7 +1380,7 @@ Acceptance criteria:
             }
 ```
 
-- `[ ]` Action: add to `PeerData` (after `excludePrivateIPsValueChanged`) the WS-clearing helper
+- `[x]` Action: add to `PeerData` (after `excludePrivateIPsValueChanged`) the WS-clearing helper
   used by the iOS editor when the mode is set back to None — without it, previously entered WS
   values would survive invisibly in the scratchpad and block `save()` with errors on rows that
   are no longer rendered:
@@ -1398,9 +1398,9 @@ Acceptance criteria:
         }
 ```
 
-### Task 4.2 — modify `Sources/WireGuardApp/Base.lproj/Localizable.strings` `[ ]`
+### Task 4.2 — modify `Sources/WireGuardApp/Base.lproj/Localizable.strings` `[x]`
 
-- `[ ]` Action: append (Base only — the other 18 lproj files are Crowdin-managed via
+- `[x]` Action: append (Base only — the other 18 lproj files are Crowdin-managed via
   `sync-translations.sh`):
 
 ```
@@ -1454,18 +1454,18 @@ DoD: every `tr()` key referenced by US4–US6 exists in `Base.lproj/Localizable.
 
 ---
 
-## User Story 5 — iOS UI: editor + detail `[ ]`
+## User Story 5 — iOS UI: editor + detail `[x]`
 
 Why: parity with Android's full WS parameter editor, in the existing iOS table idiom.
 
 Acceptance criteria:
-- `[ ]` WS mode selectable (None/WebSocket/wstunnel); WS rows appear only when a mode is set
-- `[ ]` TLS CA/cert/key rows open the document picker and store the copied app-group path
-- `[ ]` detail view shows set WS fields; bearer/booleans render as "enabled"-style markers
+- `[x]` WS mode selectable (None/WebSocket/wstunnel); WS rows appear only when a mode is set
+- `[x]` TLS CA/cert/key rows open the document picker and store the copied app-group path
+- `[x]` detail view shows set WS fields; bearer/booleans render as "enabled"-style markers
 
-### Task 5.1 — modify `Sources/Shared/FileManager+Extension.swift` `[ ]`
+### Task 5.1 — modify `Sources/Shared/FileManager+Extension.swift` `[x]`
 
-- `[ ]` Action: add the WS TLS import helpers (below `loginHelperTimestampURL`):
+- `[x]` Action: add the WS TLS import helpers (below `loginHelperTimestampURL`):
 
 ```swift
     static var wsTlsDirectoryURL: URL? {
@@ -1503,12 +1503,12 @@ Acceptance criteria:
     }
 ```
 
-### Task 5.2 — modify `Sources/WireGuardApp/UI/iOS/ViewController/TunnelEditTableViewController.swift` `[ ]`
+### Task 5.2 — modify `Sources/WireGuardApp/UI/iOS/ViewController/TunnelEditTableViewController.swift` `[x]`
 
-- `[ ]` Action: add `import UniformTypeIdentifiers` below the existing `import UIKit`
+- `[x]` Action: add `import UniformTypeIdentifiers` below the existing `import UIKit`
   (`UIDocumentPickerViewController(forOpeningContentTypes:)` takes `[UTType]`).
 
-- `[ ]` Action: replace the stored `peerFields` property with a dynamic builder, and update
+- `[x]` Action: replace the stored `peerFields` property with a dynamic builder, and update
   EVERY former `peerFields` reference site (the property is removed — all seven sites below MUST
   change):
 
@@ -1581,7 +1581,7 @@ Acceptance criteria:
     }
 ```
 
-- `[ ]` Action: route the new fields in `peerCell(for:at:with:)`:
+- `[x]` Action: route the new fields in `peerCell(for:at:with:)`:
 
 ```swift
         switch field {
@@ -1600,7 +1600,7 @@ Acceptance criteria:
         }
 ```
 
-- `[ ]` Action: add the new cell builders + selection handling + document picker plumbing. The
+- `[x]` Action: add the new cell builders + selection handling + document picker plumbing. The
   two stored properties (`pendingWsFilePeer`, `pendingWsFileField`) MUST go in the main `class
   TunnelEditTableViewController` declaration body (stored properties cannot live in extensions);
   the methods join the existing data-source extension:
@@ -1789,9 +1789,9 @@ extension TunnelEditTableViewController: UIDocumentPickerDelegate {
 
 Context: `tr("actionCancel")` already exists in `Localizable.strings`.
 
-### Task 5.3 — modify `Sources/WireGuardApp/UI/iOS/ViewController/TunnelDetailTableViewController.swift` `[ ]`
+### Task 5.3 — modify `Sources/WireGuardApp/UI/iOS/ViewController/TunnelDetailTableViewController.swift` `[x]`
 
-- `[ ]` Action: extend the static `peerFields` list (after `.persistentKeepAlive`):
+- `[x]` Action: extend the static `peerFields` list (after `.persistentKeepAlive`):
 
 ```swift
     static let peerFields: [TunnelViewModel.PeerField] = [
@@ -1803,7 +1803,7 @@ Context: `tr("actionCancel")` already exists in `Localizable.strings`.
     ]
 ```
 
-- `[ ]` Action: in the peer-cell configuration (where `.preSharedKey` maps to
+- `[x]` Action: in the peer-cell configuration (where `.preSharedKey` maps to
   `tr("tunnelPeerPresharedKeyEnabled")`), render the secret/boolean fields as markers:
 
 ```swift
@@ -1827,19 +1827,19 @@ mode is set). Build execution happens ONLY in the US9 quality gates.
 
 ---
 
-## User Story 6 — macOS UI: highlighter + detail + error mapping `[ ]`
+## User Story 6 — macOS UI: highlighter + detail + error mapping `[x]`
 
 Why: the macOS editor is raw wg-quick text gated by the highlighter (`ConfTextStorage.hasError`
 blocks saving) — without the new keys, macOS users cannot save WS configs at all.
 
 Acceptance criteria:
-- `[ ]` all 11 `WS*` keys + `ws(s)://` endpoints highlight as valid; invalid values highlight red
-- `[ ]` macOS detail view shows WS fields (bearer/booleans as markers)
-- `[ ]` every new `ParseError` case has a macOS alert mapping
+- `[x]` all 11 `WS*` keys + `ws(s)://` endpoints highlight as valid; invalid values highlight red
+- `[x]` macOS detail view shows WS fields (bearer/booleans as markers)
+- `[x]` every new `ParseError` case has a macOS alert mapping
 
-### Task 6.1 — modify `Sources/WireGuardApp/UI/macOS/View/highlighter.c` `[ ]`
+### Task 6.1 — modify `Sources/WireGuardApp/UI/macOS/View/highlighter.c` `[x]`
 
-- `[ ]` Action: add validators (after `is_valid_endpoint`):
+- `[x]` Action: add validators (after `is_valid_endpoint`):
 
 ```c
 static bool is_valid_ws_mode(string_span_t s)
@@ -1873,7 +1873,7 @@ static bool is_valid_ws_url(string_span_t s)
 }
 ```
 
-- `[ ]` Action: extend `enum field` (peer section, before `Invalid`):
+- `[x]` Action: extend `enum field` (peer section, before `Invalid`):
 
 ```c
 	PeerSection,
@@ -1897,7 +1897,7 @@ static bool is_valid_ws_url(string_span_t s)
 	Invalid
 ```
 
-- `[ ]` Action: extend `get_field` with the matching `check_enum` lines (after
+- `[x]` Action: extend `get_field` with the matching `check_enum` lines (after
   `check_enum(PersistentKeepalive);`):
 
 ```c
@@ -1914,7 +1914,7 @@ static bool is_valid_ws_url(string_span_t s)
 	check_enum(WSBackoffMax);
 ```
 
-- `[ ]` Action: in `highlight_value`, accept `ws(s)://` URLs for `Endpoint` and add the new field
+- `[x]` Action: in `highlight_value`, accept `ws(s)://` URLs for `Endpoint` and add the new field
   cases (before `default:`):
 
 ```c
@@ -1958,9 +1958,9 @@ static bool is_valid_ws_url(string_span_t s)
 Context: existing highlight types are reused (values render like hosts/numbers) — no
 `highlighter.h`/theme change, so `ConfTextStorage`/`ConfTextColorTheme` stay untouched.
 
-### Task 6.2 — modify `Sources/WireGuardApp/UI/macOS/ViewController/TunnelDetailTableViewController.swift` `[ ]`
+### Task 6.2 — modify `Sources/WireGuardApp/UI/macOS/ViewController/TunnelDetailTableViewController.swift` `[x]`
 
-- `[ ]` Action: extend the static `peerFields` list (after `.persistentKeepAlive`):
+- `[x]` Action: extend the static `peerFields` list (after `.persistentKeepAlive`):
 
 ```swift
     static let peerFields: [TunnelViewModel.PeerField] = [
@@ -1972,7 +1972,7 @@ Context: existing highlight types are reused (values render like hosts/numbers) 
     ]
 ```
 
-- `[ ]` Action: in the `.peerFieldRow(let peerData, let field)` case of the row builder, extend
+- `[x]` Action: in the `.peerFieldRow(let peerData, let field)` case of the row builder, extend
   the value chain with the marker fields:
 
 ```swift
@@ -1987,9 +1987,9 @@ Context: existing highlight types are reused (values render like hosts/numbers) 
             }
 ```
 
-### Task 6.3 — modify `Sources/WireGuardApp/UI/macOS/ParseError+WireGuardAppError.swift` `[ ]`
+### Task 6.3 — modify `Sources/WireGuardApp/UI/macOS/ParseError+WireGuardAppError.swift` `[x]`
 
-- `[ ]` Action: extend the `switch` with the new cases:
+- `[x]` Action: extend the `switch` with the new cases:
 
 ```swift
         case .peerHasInvalidWsMode(let value):
@@ -2026,19 +2026,19 @@ highlighter tests; executed in US9). Build execution happens ONLY in the US9 qua
 
 ---
 
-## User Story 7 — `WireGuardKitTests` target + tests `[ ]`
+## User Story 7 — `WireGuardKitTests` target + tests `[x]`
 
 Why: user-approved harness (resolves D2); covers the entire new decision logic on the host.
 
 Acceptance criteria:
-- `[ ]` the `WireGuardKitTests` target exists, buildable with no team configured
+- `[x]` the `WireGuardKitTests` target exists, buildable with no team configured
   (`CODE_SIGNING_ALLOWED=NO` in its settings), compiling exactly the source set from the
   Decisions section
-- `[ ]` all test files from Task 7.3 are implemented (execution happens in the US9 quality gates)
+- `[x]` all test files from Task 7.3 are implemented (execution happens in the US9 quality gates)
 
-### Task 7.1 — modify `WireGuard.xcodeproj/project.pbxproj` `[ ]`
+### Task 7.1 — modify `WireGuard.xcodeproj/project.pbxproj` `[x]`
 
-- `[ ]` Action: add a `WireGuardKitTests` unit-test bundle target with minted UUIDs (prefix
+- `[x]` Action: add a `WireGuardKitTests` unit-test bundle target with minted UUIDs (prefix
   `AA0000000000000000000xxx`), wiring:
   1. `PBXFileReference` entries: `WireGuardKitTests.xctest` (product), the new source files
      `WsMode.swift` (`AA0000000000000000000101`), `WsUrl.swift` (`AA0000000000000000000102`),
@@ -2096,9 +2096,9 @@ Acceptance criteria:
   model/serialization sources directly — NOT `WireGuardAdapter.swift` — so nothing links
   `libwg-go.a` and no signing/entitlements are involved.
 
-### Task 7.2 — create `Sources/WireGuardKitTests/WireGuardKitTests-Bridging-Header.h` `[ ]`
+### Task 7.2 — create `Sources/WireGuardKitTests/WireGuardKitTests-Bridging-Header.h` `[x]`
 
-- `[ ]` Action: create:
+- `[x]` Action: create:
 
 ```c
 /* SPDX-License-Identifier: MIT */
@@ -2107,13 +2107,13 @@ Acceptance criteria:
 #include "../WireGuardApp/UI/macOS/View/highlighter.h"
 ```
 
-### Task 7.3 — create the test files `[ ]`
+### Task 7.3 — create the test files `[x]`
 
 All tests: XCTest, Arrange-Act-Assert, `test_method_scenario` naming, offline, order-independent,
 self-cleaning (no filesystem/network use). Full test code is derivable from the implementation +
 this table:
 
-- `[ ]` `Sources/WireGuardKitTests/WsUrlTests.swift`
+- `[x]` `Sources/WireGuardKitTests/WsUrlTests.swift`
 
 | Test | Verifies |
 |---|---|
@@ -2126,7 +2126,7 @@ this table:
 | `test_endpoint_matchesUdpEndpointParsing` | `endpoint()` equals `Endpoint(from: "h:port")` |
 | `test_isWsUrl_caseInsensitivePrefix` | `WS://`/`wss://` true; `host:port` false |
 
-- `[ ]` `Sources/WireGuardKitTests/WgQuickWsConfigTests.swift` (parse + validation + round-trip;
+- `[x]` `Sources/WireGuardKitTests/WgQuickWsConfigTests.swift` (parse + validation + round-trip;
   each rejection asserts the SPECIFIC `ParseError` case)
 
 | Test | Verifies |
@@ -2149,7 +2149,7 @@ this table:
 | `test_asWgQuickConfig_udpPeerUnchanged` | UDP peer emission has zero `WS*` lines |
 | `test_parse_caseInsensitiveKeysAndValues` | `wsmode = WEBSOCKET`, `WSMODE` key casing accepted |
 
-- `[ ]` `Sources/WireGuardKitTests/UapiGenerationTests.swift`
+- `[x]` `Sources/WireGuardKitTests/UapiGenerationTests.swift`
 
 | Test | Verifies |
 |---|---|
@@ -2163,7 +2163,7 @@ this table:
   Setup note: build `PacketTunnelSettingsGenerator` with pre-resolved IP endpoints
   (`resolvedEndpoints:` init parameter) — no DNS involved.
 
-- `[ ]` `Sources/WireGuardKitTests/UapiReadbackTests.swift`
+- `[x]` `Sources/WireGuardKitTests/UapiReadbackTests.swift`
 
 | Test | Verifies |
 |---|---|
@@ -2172,7 +2172,7 @@ this table:
 | `test_fromUapiConfig_invalidTransport_rejected` | `transport=tcp` → `.peerHasInvalidTransport` |
 | `test_fromUapiConfig_zeroTimingNormalizedToNil` | `ws_ping_interval=0` → nil |
 
-- `[ ]` `Sources/WireGuardKitTests/HighlighterTests.swift` (calls `highlight_config` through the
+- `[x]` `Sources/WireGuardKitTests/HighlighterTests.swift` (calls `highlight_config` through the
   bridging header; helper converts the span array to `(type, substring)` pairs and `free`s it)
 
 | Test | Verifies |
@@ -2184,7 +2184,7 @@ this table:
 | `test_highlight_wsKeysStillInvalidInInterfaceSection` | `WSMode` under `[Interface]` → `HighlightError` |
 | `test_highlight_udpConfigUnaffected` | pre-existing UDP config highlights exactly as before (no error spans) |
 
-- `[ ]` `Sources/WireGuardKitTests/TunnelViewModelWsTests.swift` (the view-model duplicates the
+- `[x]` `Sources/WireGuardKitTests/TunnelViewModelWsTests.swift` (the view-model duplicates the
   cross-field contract with per-field errors — `tr()` returns the raw key in the test bundle,
   so assertions target `fieldsWithError`/`SaveResult` cases, never message text)
 
@@ -2207,17 +2207,17 @@ the US9 quality gates.
 
 ---
 
-## User Story 8 — Docs + rules refresh `[ ]`
+## User Story 8 — Docs + rules refresh `[x]`
 
 Why: the canonical docs and `project.md` MUST always reflect the delivered state (pipeline §2).
 
 Acceptance criteria:
-- `[ ]` canonical docs describe the delivered state; WORK_INDEX statuses updated; `project.md`
+- `[x]` canonical docs describe the delivered state; WORK_INDEX statuses updated; `project.md`
   accurate and concise
 
-### Task 8.1 — update `docs/PROJECT.md`, `docs/ARCHITECTURE.md`, `docs/WORK_INDEX.md` `[ ]`
+### Task 8.1 — update `docs/PROJECT.md`, `docs/ARCHITECTURE.md`, `docs/WORK_INDEX.md` `[x]`
 
-- `[ ]` Action: modify `docs/PROJECT.md`:
+- `[x]` Action: modify `docs/PROJECT.md`:
   - Tech-stack table, "Userspace core" row cell becomes:
 
 ```
@@ -2244,7 +2244,7 @@ copies picked files there, macOS users place files there manually.
     signing). Keep the statement that tunnel behavior validation is manual.
   - "Roadmap": WebSocket transport delivered in code by plan 1; live-tunnel validation (W6)
     pending ADP.
-- `[ ]` Action: modify `docs/ARCHITECTURE.md`:
+- `[x]` Action: modify `docs/ARCHITECTURE.md`:
   - §2 sequence chart line (Mermaid touched ⇒ US9 gate 8 validates it):
 
 ```
@@ -2266,14 +2266,14 @@ the re-resolved `endpoint=` (the fork ignores a WS endpoint update that arrives 
   - §5: describe the pinned Go 1.26.5 download (SHA256-verified, cached in
     `Sources/WireGuardKitGo/.cache/`, `GOTOOLCHAIN=local`) feeding the patched-GOROOT flow.
   - §7: replace the "will land" framing with the delivered touch-point mapping (this plan).
-- `[ ]` Action: modify `docs/WORK_INDEX.md` — statuses become: W1–W5 `DELIVERED (plan 1)`;
+- `[x]` Action: modify `docs/WORK_INDEX.md` — statuses become: W1–W5 `DELIVERED (plan 1)`;
   W6 `PENDING P1 (ADP)`; T1 `FIXED (plan 1)`; D2 `RESOLVED — user approved; WireGuardKitTests
   added (plan 1)`; D4 `RESOLVED — single plan (docs/plans/1_websocket_wstunnel_transport_
   20260808170409.md)`; P1 unchanged (enrollment underway).
 
-### Task 8.2 — update `.claude/rules/project.md` `[ ]`
+### Task 8.2 — update `.claude/rules/project.md` `[x]`
 
-- `[ ]` Action: modify `.claude/rules/project.md`:
+- `[x]` Action: modify `.claude/rules/project.md`:
   - Tech-stack "Userspace core" row cell becomes:
 
 ```
@@ -2307,27 +2307,27 @@ US9 quality gates — gate 8).
 
 ---
 
-## User Story 9 — Ground-up verification + quality gates `[ ]`
+## User Story 9 — Ground-up verification + quality gates `[x]`
 
 Why: the plan's single quality-gate point (pipeline §6) — everything implemented is re-verified
 from the ground up before review.
 
 Acceptance criteria:
-- `[ ]` every checkbox in this plan is `[x]` (or the digression is recorded in `## Deviations`)
-- `[ ]` ALL quality gates below pass on the final code
-- `[ ]` the Manual Test steps are documented for execution once ADP is active
+- `[x]` every checkbox in this plan is `[x]` (or the digression is recorded in `## Deviations`)
+- `[x]` ALL quality gates below pass on the final code
+- `[x]` the Manual Test steps are documented for execution once ADP is active
 
-### Task 9.1 — double-check EVERYTHING from the ground up `[ ]`
+### Task 9.1 — double-check EVERYTHING from the ground up `[x]`
 
-- `[ ]` Re-read this plan top-to-bottom; verify every action is implemented and checkmarked;
+- `[x]` Re-read this plan top-to-bottom; verify every action is implemented and checkmarked;
   reconcile any digression into `## Deviations`.
-- `[ ]` Verify `Sources/WireGuardKitGo/wireguard.h` is byte-identical to `master`
+- `[x]` Verify `Sources/WireGuardKitGo/wireguard.h` is byte-identical to `master`
   (`git diff master -- Sources/WireGuardKitGo/wireguard.h` is empty).
-- `[ ]` Verify NO entitlement, Info.plist, `Package.swift`, or `.swiftlint.yml` changes
+- `[x]` Verify NO entitlement, Info.plist, `Package.swift`, or `.swiftlint.yml` changes
   (`git diff master --stat` contains none of them); `swift package dump-package` still succeeds.
-- `[ ]` Verify the bearer never reaches logs/errors: `git grep -n "wsBearer" Sources/` — every
+- `[x]` Verify the bearer never reaches logs/errors: `git grep -n "wsBearer" Sources/` — every
   hit is model/serialization/UI-marker code; no interpolation into log or error strings.
-- `[ ]` Quality gates (ALL must pass; capture long output per `agent.md` §5 with `tee`):
+- `[x]` Quality gates (ALL must pass; capture long output per `agent.md` §5 with `tee`):
   1. `swiftlint` (repo root) — ZERO violations.
   2. `make -C Sources/WireGuardKitGo clean build 2>&1 | tee /tmp/wireguard-apple-go-macos.log`
   3. `make -C Sources/WireGuardKitGo clean build PLATFORM_NAME=iphoneos ARCHS=arm64 SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path) 2>&1 | tee /tmp/wireguard-apple-go-ios.log`
@@ -2340,7 +2340,7 @@ Acceptance criteria:
      `xcrun xctest build/Debug/WireGuardKitTests.xctest 2>&1 | tee /tmp/wireguard-apple-tests-run.log` — ALL tests pass.
   8. Mermaid validation (§9 of `development_pipeline.md`) for `docs/ARCHITECTURE.md` and any other
      touched chart — ALL charts OK.
-- `[ ]` **Manual Test (deferred until ADP is active — P1/P2, then re-verify)**:
+- `[x]` **Manual Test (deferred until ADP is active — P1/P2, then re-verify)**:
   1. Signed Release builds of both apps (no `CODE_SIGNING_ALLOWED=NO`).
   2. iOS + macOS: import a wstunnel config against a live wstunnel server; tunnel comes up;
      traffic flows; runtime stats visible (readback).
@@ -2350,3 +2350,27 @@ Acceptance criteria:
      path in the editor, verify TLS pinning works; iOS: pick the CA via the document picker.
 
 DoD: every checkbox in this plan is `[x]`; all quality gates green; deviations recorded.
+
+---
+
+## Deviations
+
+1. **Task 1.2 — version-header rule gains `@mkdir -p "$(DESTDIR)"`**: the standalone
+   `make version-header DESTDIR=…` invocation fails without it (Xcode pre-creates the directory,
+   the CLI does not). Behavior inside Xcode unchanged.
+2. **Task 7.2 — the test bridging header includes `<sys/types.h>` before `WireGuardKitC.h`**:
+   `WireGuardKitC.h` uses `u_int32_t`/`u_char`/`u_int16_t` without including `<sys/types.h>`
+   itself; the app's bridging header gets them transitively, a standalone include does not.
+3. **Task 7.3 — `HighlighterTests.swift` adds `import Foundation`**: the file calls `free(_:)`;
+   real XCTest re-exports Foundation so it compiles either way, but the explicit import keeps the
+   file self-contained.
+4. **US9 — host-environment gate substitutions (this machine has NO Xcode.app and NO swiftlint;
+   only Command Line Tools)**: `xcodebuild` (macOS app, iOS app, `WireGuardKitTests` bundle), the
+   `iphoneos` Go-bridge build (no iOS SDK), and `swiftlint` CANNOT run here. Executed instead:
+   the full macOS Go-bridge build (pinned-toolchain download + patch + fork compile + lipo,
+   green), `go vet` ZERO findings, `go mod tidy` no diff, `govulncheck` clean, Mermaid 5/5 OK,
+   `swiftc -typecheck` of the entire changed Swift surface (0 errors, 0 warnings), and ALL 52
+   tests EXECUTED green on the host via a scratchpad-only XCTest shim (the real production
+   sources + compiled `highlighter.c`/`key.c`/`x25519.c`; nothing shim-related is committed).
+   The blocked gates MUST be re-run once Xcode + swiftlint are installed, together with the
+   already-recorded signed-build re-verification (see `project.md` → TEMPORARY deviation).
