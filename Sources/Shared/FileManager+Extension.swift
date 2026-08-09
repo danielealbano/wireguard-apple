@@ -53,8 +53,10 @@ extension FileManager {
         let sanitized = url.lastPathComponent.map { character -> Character in
             return character.isLetter || character.isNumber || character == "." || character == "_" || character == "-" ? character : "_"
         }
-        // An empty or all-dots name ("." / "..") would escape the ws-tls directory.
-        let fileName = sanitized.isEmpty || sanitized.allSatisfy({ $0 == "." }) ? "ws-tls" : String(sanitized)
+        // An empty or all-dots name ("." / "..") would escape the ws-tls directory
+        // (allSatisfy is true for the empty case too).
+        let isUnusableName = sanitized.allSatisfy { $0 == "." }
+        let fileName = isUnusableName ? "ws-tls" : String(sanitized)
         let destination = directory.appendingPathComponent(fileName)
         let accessed = url.startAccessingSecurityScopedResource()
         defer {

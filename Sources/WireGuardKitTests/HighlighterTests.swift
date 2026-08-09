@@ -22,7 +22,7 @@ class HighlighterTests: XCTestCase {
                 let span = spans[index]
                 let start = Int(span.start)
                 let end = start + Int(span.len)
-                result.append(Span(type: span.type, text: String(decoding: bytes[start..<end], as: UTF8.self)))
+                result.append(Span(type: span.type, text: String(bytes: bytes[start..<end], encoding: .utf8) ?? ""))
                 index += 1
             }
         }
