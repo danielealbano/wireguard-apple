@@ -2377,6 +2377,13 @@ DoD: every checkbox in this plan is `[x]`; all quality gates green; deviations r
    sources + compiled `highlighter.c`/`key.c`/`x25519.c`; nothing shim-related is committed).
    The blocked gates MUST be re-run once Xcode + swiftlint are installed, together with the
    already-recorded signed-build re-verification (see `project.md` → TEMPORARY deviation).
+   **UPDATE (Xcode 26.6 installed):** subsequently EXECUTED for real — macOS app `xcodebuild`
+   BUILD SUCCEEDED and iOS app `xcodebuild -sdk iphoneos` BUILD SUCCEEDED (both with the
+   approved `CODE_SIGNING_ALLOWED=NO`; ZERO warnings in branch-touched files), the committed
+   `WireGuardKitTests` bundle built via `xcodebuild` and ALL 52 tests passed via
+   `xcrun xctest` (0 failures), and the `iphoneos` Go-bridge build is green. ONLY the SwiftLint
+   gate remains pending (the binary is not installed; installation awaits user consent) plus the
+   signed-build re-verification once ADP completes.
 5. **US9 — `swift package dump-package` was FAILING and `Package.swift` was fixed**: the US9
    checkbox was originally ticked in error (the failure was misread as a host-toolchain issue).
    The manifest was broken on `main` independently of this plan: it declares

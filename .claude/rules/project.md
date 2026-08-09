@@ -185,10 +185,10 @@ ZERO violations beyond the committed configuration, the **Go bridge** clean (`go
 **TEMPORARY deviation (user-approved, until ADP/P1–P2 complete):** the app/NE targets are
 compile-verified with `CODE_SIGNING_ALLOWED=NO` appended to the build commands; the signed build
 MUST be re-verified once the paid account is active, and this note MUST then be removed.
-Additionally, the dev host currently has NO Xcode.app and NO swiftlint (Command Line Tools only),
-so the `xcodebuild` gates (both apps + `WireGuardKitTests` bundle), the `iphoneos` Go-bridge
-build, and SwiftLint are PENDING first execution — run them as soon as Xcode and swiftlint are
-installed (plan 1 `## Deviations` records the substitute verification that was executed).
+Additionally, SwiftLint is not yet installed on the dev host, so the SwiftLint gate is PENDING
+first execution — run it as soon as swiftlint is installed (all `xcodebuild` gates, the test
+suite, and both Go-bridge platform builds have been executed green with Xcode 26.6; see plan 1
+`## Deviations`).
 
 ---
 
