@@ -1482,7 +1482,8 @@ Acceptance criteria:
         let sanitized = url.lastPathComponent.map { character -> Character in
             return character.isLetter || character.isNumber || character == "." || character == "_" || character == "-" ? character : "_"
         }
-        let fileName = sanitized.isEmpty ? "ws-tls" : String(sanitized)
+        // An empty or all-dots name ("." / "..") would escape the ws-tls directory.
+        let fileName = sanitized.isEmpty || sanitized.allSatisfy({ $0 == "." }) ? "ws-tls" : String(sanitized)
         let destination = directory.appendingPathComponent(fileName)
         let accessed = url.startAccessingSecurityScopedResource()
         defer {
@@ -2397,3 +2398,7 @@ DoD: every checkbox in this plan is `[x]`; all quality gates green; deviations r
    uses `u_int32_t`/`u_char`/`u_int16_t` without including `<sys/types.h>` (pre-existing on
    `main`; the same defect deviation #2 worked around in the test bridging header). Root-cause
    fix per the fix-broken-builds rule; the declared C surface is unchanged.
+7. **Task 5.1 — dot-only names rejected in the ws-tls sanitizer** (code-review fix): a picked
+   file whose sanitized name were `"."` or `".."` would resolve the copy destination to the
+   `ws-tls` directory itself or the app group container root; dot-only results now fall back to
+   the `"ws-tls"` default like the empty case. The Task 5.1 code block is re-aligned.
