@@ -2385,3 +2385,8 @@ DoD: every checkbox in this plan is `[x]`; all quality gates green; deviations r
    fix-broken-builds rule: string-based platform versions (`.macOS("12.0")`/`.iOS("15.0")`),
    which are valid at tools-version 5.3 — the consumer-facing tools-version floor is unchanged.
    `swift package dump-package` now succeeds (verified on this host).
+6. **US9 — `WireGuardKitC.h` gains `#include <sys/types.h>`**: with Xcode 26.6's stricter clang
+   modules, building the `WireGuardKitC` module fails on every target because the umbrella header
+   uses `u_int32_t`/`u_char`/`u_int16_t` without including `<sys/types.h>` (pre-existing on
+   `main`; the same defect deviation #2 worked around in the test bridging header). Root-cause
+   fix per the fix-broken-builds rule; the declared C surface is unchanged.
