@@ -452,3 +452,48 @@
 // Donation
 
 "donateLink" = "♥ Donate to the WireGuard Project";
+
+/* WebSocket/wstunnel transport */
+"tunnelPeerWsMode" = "WebSocket mode";
+"tunnelPeerWsModeNone" = "None (UDP)";
+"tunnelPeerWsModeWebsocket" = "WebSocket";
+"tunnelPeerWsModeWstunnel" = "wstunnel";
+"tunnelPeerWstunnelTarget" = "wstunnel target";
+"tunnelPeerWsBearer" = "WebSocket bearer";
+"tunnelPeerWsMask" = "Mask WebSocket frames";
+"tunnelPeerWsTlsCa" = "TLS CA certificate";
+"tunnelPeerWsTlsCert" = "TLS client certificate";
+"tunnelPeerWsTlsKey" = "TLS client key";
+"tunnelPeerWsTlsInsecure" = "Skip TLS verification";
+"tunnelPeerWsPingInterval" = "WebSocket ping interval (ms)";
+"tunnelPeerWsBackoffMin" = "Reconnect backoff min (ms)";
+"tunnelPeerWsBackoffMax" = "Reconnect backoff max (ms)";
+"tunnelPeerWsEnabled" = "enabled";
+"tunnelEditSelectFile" = "Select file";
+
+"alertInvalidPeerMessageWsModeInvalid" = "Peer's WebSocket mode must be 'websocket' or 'wstunnel'";
+"alertInvalidPeerMessageWstunnelTargetInvalid" = "Peer's wstunnel target must be of the form 'host:port'";
+"alertInvalidPeerMessageWsMillisInvalid" = "Peer's WebSocket timings must be non-negative millisecond counts";
+"alertInvalidPeerMessageWsUrlRequiresMode" = "A ws:// or wss:// endpoint requires a WebSocket mode";
+"alertInvalidPeerMessageWsModeForbidsHostPort" = "A WebSocket mode requires a ws:// or wss:// endpoint, not 'host:port'";
+"alertInvalidPeerMessageInboundWstunnel" = "wstunnel mode requires a ws:// or wss:// endpoint (it is a dialing mode)";
+"alertInvalidPeerMessageWstunnelTargetRequired" = "wstunnel mode requires a wstunnel target";
+"alertInvalidPeerMessageWstunnelTargetForbidden" = "A wstunnel target is only valid for a dialing wstunnel peer";
+"alertInvalidPeerMessageWsKeyWithoutMode" = "WebSocket options require a WebSocket mode";
+"alertWsFileImportFailedTitle" = "Unable to import file";
+"alertWsFileImportFailedMessage (%@)" = "The selected file could not be imported: %@";
+"alertWsFileImportFailedNoContainerMessage" = "The app group container is unavailable";
+
+"macAlertWsModeInvalid (%@)" = "WSMode '%@' is invalid";
+"macAlertWsTunnelTargetInvalid (%@)" = "WSTunnelTarget '%@' is invalid";
+"macAlertWsBearerInvalid" = "WSBearer must not be empty";
+"macAlertWsBooleanInvalid (%@)" = "Expected 'true' or 'false', got '%@'";
+"macAlertWsMillisInvalid (%@)" = "'%@' is not a valid millisecond count";
+"macAlertWsValueEmpty (%@)" = "Value for '%@' must not be empty";
+"macAlertTransportInvalid (%@)" = "Transport '%@' is invalid";
+"macAlertWsUrlRequiresWsMode" = "A ws(s):// Endpoint requires WSMode";
+"macAlertWsModeForbidsHostPortEndpoint" = "WSMode requires a ws(s):// Endpoint, not 'host:port'";
+"macAlertInboundWstunnelForbidden" = "WSMode=wstunnel requires a ws(s):// Endpoint (wstunnel is a dialing mode)";
+"macAlertWstunnelRequiresTarget" = "WSMode=wstunnel requires WSTunnelTarget";
+"macAlertWsTunnelTargetForbidden" = "WSTunnelTarget requires WSMode=wstunnel and a ws(s):// Endpoint";
+"macAlertWsKeyWithoutWsMode (%@)" = "'%@' requires WSMode";

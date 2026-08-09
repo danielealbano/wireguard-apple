@@ -43,6 +43,17 @@ class TunnelViewModel {
         case endpoint
         case persistentKeepAlive
         case allowedIPs
+        case wsMode
+        case wstunnelTarget
+        case wsBearer
+        case wsMask
+        case wsTlsCa
+        case wsTlsCert
+        case wsTlsKey
+        case wsTlsInsecure
+        case wsPingInterval
+        case wsBackoffMin
+        case wsBackoffMax
         case rxBytes
         case txBytes
         case lastHandshakeTime
@@ -56,6 +67,17 @@ class TunnelViewModel {
             case .endpoint: return tr("tunnelPeerEndpoint")
             case .persistentKeepAlive: return tr("tunnelPeerPersistentKeepalive")
             case .allowedIPs: return tr("tunnelPeerAllowedIPs")
+            case .wsMode: return tr("tunnelPeerWsMode")
+            case .wstunnelTarget: return tr("tunnelPeerWstunnelTarget")
+            case .wsBearer: return tr("tunnelPeerWsBearer")
+            case .wsMask: return tr("tunnelPeerWsMask")
+            case .wsTlsCa: return tr("tunnelPeerWsTlsCa")
+            case .wsTlsCert: return tr("tunnelPeerWsTlsCert")
+            case .wsTlsKey: return tr("tunnelPeerWsTlsKey")
+            case .wsTlsInsecure: return tr("tunnelPeerWsTlsInsecure")
+            case .wsPingInterval: return tr("tunnelPeerWsPingInterval")
+            case .wsBackoffMin: return tr("tunnelPeerWsBackoffMin")
+            case .wsBackoffMax: return tr("tunnelPeerWsBackoffMax")
             case .rxBytes: return tr("tunnelPeerRxBytes")
             case .txBytes: return tr("tunnelPeerTxBytes")
             case .lastHandshakeTime: return tr("tunnelPeerLastHandshakeTime")
@@ -152,7 +174,7 @@ class TunnelViewModel {
                 return .saved((name, config))
             }
             fieldsWithError.removeAll()
-            guard let name = scratchpad[.name]?.trimmingCharacters(in: .whitespacesAndNewlines), (!name.isEmpty) else {
+            guard let name = scratchpad[.name]?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else {
                 fieldsWithError.insert(.name)
                 return .error(tr("alertInvalidInterfaceMessageNameRequired"))
             }
@@ -311,11 +333,46 @@ class TunnelViewModel {
             if !config.allowedIPs.isEmpty {
                 scratchpad[.allowedIPs] = config.allowedIPs.map { $0.stringRepresentation }.joined(separator: ", ")
             }
-            if let endpoint = config.endpoint {
+            if let wsUrl = config.wsUrl {
+                scratchpad[.endpoint] = wsUrl.urlString
+            } else if let endpoint = config.endpoint {
                 scratchpad[.endpoint] = endpoint.stringRepresentation
             }
             if let persistentKeepAlive = config.persistentKeepAlive {
                 scratchpad[.persistentKeepAlive] = String(persistentKeepAlive)
+            }
+            if let wsMode = config.wsMode {
+                scratchpad[.wsMode] = wsMode.rawValue
+            }
+            if let wstunnelTarget = config.wstunnelTarget {
+                scratchpad[.wstunnelTarget] = wstunnelTarget
+            }
+            if let wsBearer = config.wsBearer {
+                scratchpad[.wsBearer] = wsBearer
+            }
+            if config.wsMask {
+                scratchpad[.wsMask] = "true"
+            }
+            if let wsTlsCa = config.wsTlsCa {
+                scratchpad[.wsTlsCa] = wsTlsCa
+            }
+            if let wsTlsCert = config.wsTlsCert {
+                scratchpad[.wsTlsCert] = wsTlsCert
+            }
+            if let wsTlsKey = config.wsTlsKey {
+                scratchpad[.wsTlsKey] = wsTlsKey
+            }
+            if config.wsTlsInsecure {
+                scratchpad[.wsTlsInsecure] = "true"
+            }
+            if let wsPingIntervalMs = config.wsPingIntervalMs {
+                scratchpad[.wsPingInterval] = String(wsPingIntervalMs)
+            }
+            if let wsBackoffMinMs = config.wsBackoffMinMs {
+                scratchpad[.wsBackoffMin] = String(wsBackoffMinMs)
+            }
+            if let wsBackoffMaxMs = config.wsBackoffMaxMs {
+                scratchpad[.wsBackoffMax] = String(wsBackoffMaxMs)
             }
             if let rxBytes = config.rxBytes {
                 scratchpad[.rxBytes] = prettyBytes(rxBytes)
@@ -365,7 +422,15 @@ class TunnelViewModel {
                 config.allowedIPs = allowedIPs
             }
             if let endpointString = scratchpad[.endpoint] {
-                if let endpoint = Endpoint(from: endpointString) {
+                if WsUrl.isWsUrl(endpointString) {
+                    if let wsUrl = WsUrl(from: endpointString), let endpoint = wsUrl.endpoint() {
+                        config.wsUrl = wsUrl
+                        config.endpoint = endpoint
+                    } else {
+                        fieldsWithError.insert(.endpoint)
+                        errorMessages.append(tr("alertInvalidPeerMessageEndpointInvalid"))
+                    }
+                } else if let endpoint = Endpoint(from: endpointString) {
                     config.endpoint = endpoint
                 } else {
                     fieldsWithError.insert(.endpoint)
@@ -378,6 +443,74 @@ class TunnelViewModel {
                 } else {
                     fieldsWithError.insert(.persistentKeepAlive)
                     errorMessages.append(tr("alertInvalidPeerMessagePersistentKeepaliveInvalid"))
+                }
+            }
+            if let wsModeString = scratchpad[.wsMode] {
+                if let wsMode = WsMode(fromWireFormat: wsModeString) {
+                    config.wsMode = wsMode
+                } else {
+                    fieldsWithError.insert(.wsMode)
+                    errorMessages.append(tr("alertInvalidPeerMessageWsModeInvalid"))
+                }
+            }
+            if let wstunnelTargetString = scratchpad[.wstunnelTarget] {
+                if Endpoint(from: wstunnelTargetString) != nil {
+                    config.wstunnelTarget = wstunnelTargetString
+                } else {
+                    fieldsWithError.insert(.wstunnelTarget)
+                    errorMessages.append(tr("alertInvalidPeerMessageWstunnelTargetInvalid"))
+                }
+            }
+            if let wsBearerString = scratchpad[.wsBearer], !wsBearerString.isEmpty {
+                config.wsBearer = wsBearerString
+            }
+            config.wsMask = scratchpad[.wsMask] == "true"
+            config.wsTlsCa = scratchpad[.wsTlsCa]
+            config.wsTlsCert = scratchpad[.wsTlsCert]
+            config.wsTlsKey = scratchpad[.wsTlsKey]
+            config.wsTlsInsecure = scratchpad[.wsTlsInsecure] == "true"
+            for (field, keyPath) in [(PeerField.wsPingInterval, \PeerConfiguration.wsPingIntervalMs),
+                                     (PeerField.wsBackoffMin, \PeerConfiguration.wsBackoffMinMs),
+                                     (PeerField.wsBackoffMax, \PeerConfiguration.wsBackoffMaxMs)] {
+                if let millisString = scratchpad[field] {
+                    if let millis = UInt32(millisString) {
+                        config[keyPath: keyPath] = millis == 0 ? nil : millis
+                    } else {
+                        fieldsWithError.insert(field)
+                        errorMessages.append(tr("alertInvalidPeerMessageWsMillisInvalid"))
+                    }
+                }
+            }
+            // Cross-field rules (identical to the wg-quick parser; presence-triggered).
+            if config.wsUrl != nil && config.wsMode == nil {
+                fieldsWithError.insert(.wsMode)
+                errorMessages.append(tr("alertInvalidPeerMessageWsUrlRequiresMode"))
+            }
+            if config.wsUrl == nil && config.wsMode != nil && config.endpoint != nil {
+                fieldsWithError.insert(.endpoint)
+                errorMessages.append(tr("alertInvalidPeerMessageWsModeForbidsHostPort"))
+            }
+            if config.wsMode == .wstunnel && config.wsUrl == nil {
+                fieldsWithError.insert(.wsMode)
+                errorMessages.append(tr("alertInvalidPeerMessageInboundWstunnel"))
+            }
+            if config.wsMode == .wstunnel && config.wsUrl != nil && config.wstunnelTarget == nil {
+                fieldsWithError.insert(.wstunnelTarget)
+                errorMessages.append(tr("alertInvalidPeerMessageWstunnelTargetRequired"))
+            }
+            if config.wstunnelTarget != nil && !(config.wsMode == .wstunnel && config.wsUrl != nil) {
+                fieldsWithError.insert(.wstunnelTarget)
+                errorMessages.append(tr("alertInvalidPeerMessageWstunnelTargetForbidden"))
+            }
+            if config.wsMode == nil {
+                // `.wstunnelTarget` is absent on purpose: the target-placement check above
+                // already reported it (identical to the wg-quick parser's presence list).
+                let wsFieldPresence: [PeerField] = [.wsBearer, .wsMask, .wsTlsCa, .wsTlsCert,
+                                                    .wsTlsKey, .wsTlsInsecure, .wsPingInterval, .wsBackoffMin, .wsBackoffMax]
+                for field in wsFieldPresence where scratchpad[field] != nil {
+                    fieldsWithError.insert(field)
+                    errorMessages.append(tr("alertInvalidPeerMessageWsKeyWithoutMode"))
+                    break
                 }
             }
 
@@ -442,6 +575,17 @@ class TunnelViewModel {
                 return ipv6Addresses + TunnelViewModel.PeerData.ipv4DefaultRouteModRFC1918String + normalizedDNSServers
             } else {
                 return ipv6Addresses.filter { !normalizedOldDNSServers.contains($0) } + [TunnelViewModel.PeerData.ipv4DefaultRouteString]
+            }
+        }
+
+        static let wsParameterFields: [PeerField] = [
+            .wstunnelTarget, .wsBearer, .wsMask, .wsTlsCa, .wsTlsCert,
+            .wsTlsKey, .wsTlsInsecure, .wsPingInterval, .wsBackoffMin, .wsBackoffMax
+        ]
+
+        func clearWsParameterFields() {
+            for field in PeerData.wsParameterFields {
+                self[field] = ""
             }
         }
 
@@ -605,13 +749,11 @@ class TunnelViewModel {
         }
 
         var addedPeerIndices = [Int]()
-        for otherPeer in other.peers {
-            if !peersData.contains(where: { $0.publicKey == otherPeer.publicKey }) {
-                addedPeerIndices.append(peersData.count)
-                let peerData = PeerData(index: peersData.count)
-                peerData.validatedConfiguration = otherPeer
-                peersData.append(peerData)
-            }
+        for otherPeer in other.peers where !peersData.contains(where: { $0.publicKey == otherPeer.publicKey }) {
+            addedPeerIndices.append(peersData.count)
+            let peerData = PeerData(index: peersData.count)
+            peerData.validatedConfiguration = otherPeer
+            peersData.append(peerData)
         }
 
         for (index, peer) in peersData.enumerated() {

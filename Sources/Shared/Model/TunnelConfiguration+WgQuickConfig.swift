@@ -33,6 +33,19 @@ extension TunnelConfiguration {
         case peerHasUnrecognizedKey(String)
         case multiplePeersWithSamePublicKey
         case multipleEntriesForKey(String)
+        case peerHasInvalidWsMode(String)
+        case peerHasInvalidWsTunnelTarget(String)
+        case peerHasInvalidWsBearer // carries no value: the bearer is a secret
+        case peerHasInvalidWsBoolean(String)
+        case peerHasInvalidWsMillis(String)
+        case peerHasEmptyWsValue(String) // offending key (canonical spelling)
+        case peerHasInvalidTransport(String)
+        case peerWsUrlRequiresWsMode
+        case peerWsModeForbidsHostPortEndpoint
+        case peerInboundWstunnelForbidden
+        case peerWstunnelRequiresTarget
+        case peerWsTunnelTargetForbidden
+        case peerHasWsKeyWithoutWsMode(String) // offending key (canonical spelling)
     }
 
     convenience init(fromWgQuickConfig wgQuickConfig: String, called name: String? = nil) throws {
@@ -72,7 +85,9 @@ extension TunnelConfiguration {
                         attributes[key] = value
                     }
                     let interfaceSectionKeys: Set<String> = ["privatekey", "listenport", "address", "dns", "mtu"]
-                    let peerSectionKeys: Set<String> = ["publickey", "presharedkey", "allowedips", "endpoint", "persistentkeepalive"]
+                    let peerSectionKeys: Set<String> = ["publickey", "presharedkey", "allowedips", "endpoint", "persistentkeepalive",
+                                                       "wsmode", "wstunneltarget", "wsbearer", "wsmask", "wstlsca", "wstlscert",
+                                                       "wstlskey", "wstlsinsecure", "wspinginterval", "wsbackoffmin", "wsbackoffmax"]
                     if parserState == .inInterfaceSection {
                         guard interfaceSectionKeys.contains(key) else {
                             throw ParseError.interfaceHasUnrecognizedKey(keyWithCase)
@@ -153,11 +168,46 @@ extension TunnelConfiguration {
                 let allowedIPsString = peer.allowedIPs.map { $0.stringRepresentation }.joined(separator: ", ")
                 output.append("AllowedIPs = \(allowedIPsString)\n")
             }
-            if let endpoint = peer.endpoint {
+            if let wsUrl = peer.wsUrl {
+                output.append("Endpoint = \(wsUrl.urlString)\n")
+            } else if let endpoint = peer.endpoint {
                 output.append("Endpoint = \(endpoint.stringRepresentation)\n")
             }
             if let persistentKeepAlive = peer.persistentKeepAlive {
                 output.append("PersistentKeepalive = \(persistentKeepAlive)\n")
+            }
+            if let wsMode = peer.wsMode {
+                output.append("WSMode = \(wsMode.rawValue)\n")
+            }
+            if let wstunnelTarget = peer.wstunnelTarget {
+                output.append("WSTunnelTarget = \(wstunnelTarget)\n")
+            }
+            if peer.wsMask {
+                output.append("WSMask = true\n")
+            }
+            if let wsTlsCa = peer.wsTlsCa {
+                output.append("WSTLSCA = \(wsTlsCa)\n")
+            }
+            if let wsTlsCert = peer.wsTlsCert {
+                output.append("WSTLSCert = \(wsTlsCert)\n")
+            }
+            if let wsTlsKey = peer.wsTlsKey {
+                output.append("WSTLSKey = \(wsTlsKey)\n")
+            }
+            if peer.wsTlsInsecure {
+                output.append("WSTLSInsecure = true\n")
+            }
+            if let wsPingIntervalMs = peer.wsPingIntervalMs {
+                output.append("WSPingInterval = \(wsPingIntervalMs)\n")
+            }
+            if let wsBackoffMinMs = peer.wsBackoffMinMs {
+                output.append("WSBackoffMin = \(wsBackoffMinMs)\n")
+            }
+            if let wsBackoffMaxMs = peer.wsBackoffMaxMs {
+                output.append("WSBackoffMax = \(wsBackoffMaxMs)\n")
+            }
+            if let wsBearer = peer.wsBearer {
+                output.append("WSBearer = \(wsBearer)\n")
             }
         }
 
@@ -235,10 +285,18 @@ extension TunnelConfiguration {
             peer.allowedIPs = allowedIPs
         }
         if let endpointString = attributes["endpoint"] {
-            guard let endpoint = Endpoint(from: endpointString) else {
-                throw ParseError.peerHasInvalidEndpoint(endpointString)
+            if WsUrl.isWsUrl(endpointString) {
+                guard let wsUrl = WsUrl(from: endpointString), let endpoint = wsUrl.endpoint() else {
+                    throw ParseError.peerHasInvalidEndpoint(endpointString)
+                }
+                peer.wsUrl = wsUrl
+                peer.endpoint = endpoint
+            } else {
+                guard let endpoint = Endpoint(from: endpointString) else {
+                    throw ParseError.peerHasInvalidEndpoint(endpointString)
+                }
+                peer.endpoint = endpoint
             }
-            peer.endpoint = endpoint
         }
         if let persistentKeepAliveString = attributes["persistentkeepalive"] {
             guard let persistentKeepAlive = UInt16(persistentKeepAliveString) else {
@@ -246,7 +304,89 @@ extension TunnelConfiguration {
             }
             peer.persistentKeepAlive = persistentKeepAlive
         }
+        if let wsModeString = attributes["wsmode"] {
+            guard let wsMode = WsMode(fromWireFormat: wsModeString) else {
+                throw ParseError.peerHasInvalidWsMode(wsModeString)
+            }
+            peer.wsMode = wsMode
+        }
+        if let wstunnelTargetString = attributes["wstunneltarget"] {
+            // Validate the host:port shape; store the raw string. The inner target is resolved
+            // by the wstunnel relay, never by this app.
+            guard Endpoint(from: wstunnelTargetString) != nil else {
+                throw ParseError.peerHasInvalidWsTunnelTarget(wstunnelTargetString)
+            }
+            peer.wstunnelTarget = wstunnelTargetString
+        }
+        if let wsBearerString = attributes["wsbearer"] {
+            guard !wsBearerString.isEmpty else { throw ParseError.peerHasInvalidWsBearer }
+            peer.wsBearer = wsBearerString
+        }
+        peer.wsMask = try parseWsBoolean(attributes, key: "wsmask")
+        peer.wsTlsCa = try parseWsNonEmpty(attributes, key: "wstlsca", canonical: "WSTLSCA")
+        peer.wsTlsCert = try parseWsNonEmpty(attributes, key: "wstlscert", canonical: "WSTLSCert")
+        peer.wsTlsKey = try parseWsNonEmpty(attributes, key: "wstlskey", canonical: "WSTLSKey")
+        peer.wsTlsInsecure = try parseWsBoolean(attributes, key: "wstlsinsecure")
+        peer.wsPingIntervalMs = try parseWsMillis(attributes, key: "wspinginterval")
+        peer.wsBackoffMinMs = try parseWsMillis(attributes, key: "wsbackoffmin")
+        peer.wsBackoffMaxMs = try parseWsMillis(attributes, key: "wsbackoffmax")
+        try validateWs(peer: peer, attributes: attributes)
         return peer
+    }
+
+    private static func parseWsBoolean(_ attributes: [String: String], key: String) throws -> Bool {
+        guard let value = attributes[key] else { return false }
+        switch value {
+        case "true": return true
+        case "false": return false
+        default: throw ParseError.peerHasInvalidWsBoolean(value)
+        }
+    }
+
+    private static func parseWsNonEmpty(_ attributes: [String: String], key: String, canonical: String) throws -> String? {
+        guard let value = attributes[key] else { return nil }
+        guard !value.isEmpty else { throw ParseError.peerHasEmptyWsValue(canonical) }
+        return value
+    }
+
+    // A UAPI ws_* timing of 0 means "use the default", so it is not carried or emitted.
+    private static func parseWsMillis(_ attributes: [String: String], key: String) throws -> UInt32? {
+        guard let value = attributes[key] else { return nil }
+        guard let millis = UInt32(value) else { throw ParseError.peerHasInvalidWsMillis(value) }
+        return millis == 0 ? nil : millis
+    }
+
+    private static func validateWs(peer: PeerConfiguration, attributes: [String: String]) throws {
+        let isWstunnel = peer.wsMode == .wstunnel
+        if peer.wsUrl != nil && peer.wsMode == nil {
+            throw ParseError.peerWsUrlRequiresWsMode
+        }
+        if peer.wsUrl == nil && peer.wsMode != nil && peer.endpoint != nil {
+            throw ParseError.peerWsModeForbidsHostPortEndpoint
+        }
+        if isWstunnel && peer.wsUrl == nil {
+            throw ParseError.peerInboundWstunnelForbidden
+        }
+        if isWstunnel && peer.wsUrl != nil && peer.wstunnelTarget == nil {
+            throw ParseError.peerWstunnelRequiresTarget
+        }
+        if peer.wstunnelTarget != nil && !(isWstunnel && peer.wsUrl != nil) {
+            throw ParseError.peerWsTunnelTargetForbidden
+        }
+        if peer.wsMode == nil {
+            // Presence, not value, is the trigger (a `WSMask = false` on a UDP peer is an error).
+            // `WSTunnelTarget` is absent here on purpose: the target-placement check above
+            // already threw `.peerWsTunnelTargetForbidden` for it.
+            let wsKeys: [(String, String)] = [
+                ("wsbearer", "WSBearer"), ("wsmask", "WSMask"),
+                ("wstlsca", "WSTLSCA"), ("wstlscert", "WSTLSCert"), ("wstlskey", "WSTLSKey"),
+                ("wstlsinsecure", "WSTLSInsecure"), ("wspinginterval", "WSPingInterval"),
+                ("wsbackoffmin", "WSBackoffMin"), ("wsbackoffmax", "WSBackoffMax")
+            ]
+            for (key, canonical) in wsKeys where attributes[key] != nil {
+                throw ParseError.peerHasWsKeyWithoutWsMode(canonical)
+            }
+        }
     }
 
 }

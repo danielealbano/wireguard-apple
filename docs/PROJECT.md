@@ -12,11 +12,11 @@ library) over a small cgo bridge.
 > **Fork status:** this repository is a fork of `WireGuard/wireguard-apple`
 > (`origin` = `github.com/danielealbano/wireguard-apple`,
 > `upstream` = `github.com/WireGuard/wireguard-apple`).
-> **Goal (ROADMAP — not started):** per-peer **WebSocket/wstunnel transport** support with logical
-> and functional parity with the existing UDP handling, on BOTH platforms, consuming the sibling
-> `danielealbano/wireguard-go` fork (WebSocket transport + UDP/WebSocket multiplex bind), with a
-> config surface byte-compatible with the sibling `wireguard-tools` fork. Execution scope and
-> sequencing are a pending discussion.
+> **Goal — DELIVERED IN CODE (plan 1):** per-peer **WebSocket/wstunnel transport** support with
+> logical and functional parity with the existing UDP handling, on BOTH platforms, consuming the
+> sibling `danielealbano/wireguard-go` fork (WebSocket transport + UDP/WebSocket multiplex bind),
+> with a config surface byte-compatible with the sibling `wireguard-tools` fork. Live-tunnel
+> validation (W6) is Manual Test, pending the Apple Developer Program enrollment (P1).
 
 ## Tech stack
 
@@ -25,13 +25,13 @@ library) over a small cgo bridge.
 | Languages | Swift 5 (app, kit), C (crypto helpers, ringlogger, minizip, highlighter), Go (userspace core bridge), Objective-C (login-item helper `main.m`) |
 | UI | UIKit on iOS (programmatic, no storyboards except LaunchScreen), AppKit on macOS (menu-bar app) |
 | VPN | `NetworkExtension` — `NEPacketTunnelProvider`, `NETunnelProviderManager`, `NEOnDemandRule` |
-| Build | Xcode project `WireGuard.xcodeproj` + xcconfig; Go bridge via `make` legacy targets; `Package.swift` (SPM) for external WireGuardKit consumers |
+| Build | Xcode project `WireGuard.xcodeproj` + xcconfig; Go bridge via `make` legacy targets (pinned-download Go 1.26.5 toolchain, `GOTOOLCHAIN=local`); `Package.swift` (SPM) for external WireGuardKit consumers |
 | Deployment targets | iOS 15.0, macOS 12.0 |
 | Config storage | System VPN preferences + Keychain (wg-quick text as generic password) |
 | Logging | `os_log` + memory-mapped ring-buffer file (`ringlogger.c`) in the app group container |
 | Lint | SwiftLint (`.swiftlint.yml` + build phase) |
 | Localization | Base + 18 languages, synced from Crowdin (`sync-translations.sh`) |
-| Tests / CI | None (see Testing) |
+| Tests / CI | `WireGuardKitTests` macOS unit-test bundle (see Testing); no CI |
 
 ## Repository layout
 
@@ -87,8 +87,9 @@ Notes:
 
 ## The Go bridge (`Sources/WireGuardKitGo`)
 
-- Module `golang.zx2c4.com/wireguard/apple` (`go` directive 1.17), wrapping the upstream core
-  `golang.zx2c4.com/wireguard` pinned at `v0.0.0-20230209153558-1e2c3e5a3c14`.
+- Module `golang.zx2c4.com/wireguard/apple` (`go` directive 1.26.5), wrapping
+  `golang.zx2c4.com/wireguard` **replaced by the sibling fork
+  `github.com/danielealbano/wireguard-go v1.3.0`** (UDP + WebSocket multiplex bind).
 - `api-apple.go` is a `package main` cgo file exposing the C API via `//export`:
   `wgSetLogger`, `wgTurnOn(settings, tunFd) -> handle`, `wgTurnOff(handle)`,
   `wgSetConfig(handle, settings) -> int64`, `wgGetConfig(handle) -> char*`,
@@ -96,35 +97,52 @@ Notes:
   The matching C declarations live in `wireguard.h` (consumed by the `WireGuardKitGo` module map
   and the NE bridging header). **These three surfaces must always match — change one → change all.**
 - `wgTurnOn` dups the utun fd, wraps it with `tun.CreateTUNFromFile`, builds the device with
-  `conn.NewStdNetBind()`, applies the UAPI settings, brings the device up, and returns an `int32`
-  handle into a `tunnelHandles` map. The map is unguarded on the Go side: all tunnel-handle
-  operations issued while the adapter is alive run on the adapter's private serial queue, while the
-  init/deinit-time calls (`wgSetLogger`, the `deinit` `wgTurnOff`) and `wgVersion` run on the
-  caller's thread and are non-concurrent only by object-lifetime ordering. `wgBumpSockets` rebinds
-  sockets (retrying up to 10×) and sends keepalives — used on network path changes.
-- The `Makefile` builds one `libwg-go-<arch>.a` per configured architecture
-  (`-buildmode c-archive`, `GOOS` mapped from the Xcode platform: `macosx`→`darwin`,
-  `iphoneos`→`ios`) using a **patched GOROOT** (`goruntime-boottime-over-monotonic.diff`, so time
-  keeps advancing across device sleep) and lipo's them into a universal `libwg-go.a`. It also
-  generates `wireguard-go-version.h` from the `go.mod` pin.
-- Known pre-existing debt inherited from upstream (verified 2026-08-08): `go vet` reports 3
-  findings in `api-apple.go` (unbuffered `os.Signal` channel passed to `signal.Notify`, and two
-  `unsafe.Pointer` misuse warnings). To be fixed with the first change touching the bridge.
+  `conn.NewMultiplexBind(conn.WithWSLogger(...))` — one bind carrying UDP and WebSocket/wstunnel
+  peers; the UDP data path is the unchanged platform `StdNetBind`, and no fd-protect upcall is
+  needed on Apple platforms — applies the UAPI settings, brings the device up (`Up()`'s error is
+  handled), and returns an `int32` handle into a mutex-guarded `tunnelHandles` map (init/
+  deinit-time calls run on the caller's thread, racing the adapter's serial-queue calls).
+  `wgBumpSockets` calls `device.BindUpdate()` (retrying up to 10×) and sends keepalives — on a
+  network path change this rebinds the UDP sockets AND re-dials WebSocket connections.
+- The `Makefile` downloads the official **Go 1.26.5** tarball (SHA256-verified, cached in the
+  gitignored `Sources/WireGuardKitGo/.cache/`), extracts it, applies the boottime patch
+  (`goruntime-boottime-over-monotonic.diff`, so time keeps advancing across device sleep), and
+  exports `GOTOOLCHAIN=local` so Go's automatic toolchain switching can never bypass the patched
+  GOROOT. It builds one `libwg-go-<arch>.a` per configured architecture (`-buildmode c-archive`,
+  `GOOS` mapped from the Xcode platform: `macosx`→`darwin`, `iphoneos`→`ios`) and lipo's them
+  into a universal `libwg-go.a`. It also generates `wireguard-go-version.h` from the `go.mod`
+  `replace` line (`1.3.0`), failing loudly if the pin cannot be extracted.
 
 ## Config model & storage
 
 - **Model** (`WireGuardKit`): `TunnelConfiguration` (name + `InterfaceConfiguration` +
   `[PeerConfiguration]`), `Endpoint` (host:port, wireguard-tools `parse_endpoint` semantics),
-  `IPAddressRange`, `DNSServer`, and `PrivateKey`/`PublicKey`/`PreSharedKey` (32-byte keys backed
-  by `WireGuardKitC` hex/base64/x25519 helpers).
+  `IPAddressRange`, `DNSServer`, `PrivateKey`/`PublicKey`/`PreSharedKey` (32-byte keys backed
+  by `WireGuardKitC` hex/base64/x25519 helpers), and the per-peer WebSocket surface: `WsMode`
+  (`websocket`|`wstunnel`), `WsUrl` (`ws(s)://host:port[/path]`, explicit port required, stored
+  verbatim; userinfo rejected and query/fragment accepted only after a path — the tools fork's
+  acceptance set; the URL host:port doubles as the routable `Endpoint`), plus `wstunnelTarget`,
+  `wsBearer` (secret — never logged or shown), `wsMask`, `wsTlsCa`/`wsTlsCert`/`wsTlsKey` (file
+  paths), `wsTlsInsecure`, and `wsPingIntervalMs`/`wsBackoffMinMs`/`wsBackoffMaxMs` (0 ⇒ default,
+  dropped).
 - **wg-quick text** (`Shared/Model/TunnelConfiguration+WgQuickConfig.swift`): parses/serializes the
   wg-quick subset — Interface: `PrivateKey`, `ListenPort`, `Address`, `DNS` (servers + search
-  domains), `MTU`; Peer: `PublicKey`, `PresharedKey`, `AllowedIPs`, `Endpoint`,
-  `PersistentKeepalive`. Unknown keys are parse errors.
+  domains), `MTU`; Peer: `PublicKey`, `PresharedKey`, `AllowedIPs`, `Endpoint` (`host:port` or a
+  `ws(s)://` URL), `PersistentKeepalive`, `WSMode`, `WSTunnelTarget`, `WSBearer`, `WSMask`,
+  `WSTLSCA`, `WSTLSCert`, `WSTLSKey`, `WSTLSInsecure`, `WSPingInterval`, `WSBackoffMin`,
+  `WSBackoffMax` — byte-compatible with the sibling `wireguard-tools` fork, including its
+  validation rules (a `ws(s)://` endpoint requires `WSMode`; `WSMode` forbids a `host:port`
+  endpoint; inbound peers are websocket-only; wstunnel requires URL + target; ANY `WS*` key on a
+  UDP peer is an error by presence, not value). Unknown keys are parse errors.
 - **UAPI** (`WireGuardKit/PacketTunnelSettingsGenerator.swift`): generates the userspace
   `key=value` configuration passed to `wgTurnOn`/`wgSetConfig` (keys hex-encoded, endpoints
-  resolved first); `TunnelConfiguration+UapiConfig` parses the runtime config returned by
-  `wgGetConfig` (rx/tx bytes, last handshake) for the UI.
+  resolved first; `transport=` on every peer, `ws_*` for WebSocket peers — a dialing peer's block
+  travels only with a successfully resolved `endpoint=`, and the iOS endpoint re-resolution path
+  re-sends the full block); `TunnelConfiguration+UapiConfig` parses the runtime config returned by
+  `wgGetConfig` (rx/tx bytes, last handshake, `transport=`/`ws_*` round-trip) for the UI.
+- **WS TLS files**: TLS CA/cert/key files referenced by WS peers live in the app group
+  container's `ws-tls/` folder (the only location both the app and the NE sandbox can read); the
+  iOS editor's document picker copies picked files there, macOS users place files there manually.
 - **Storage**: each tunnel is a `NETunnelProviderManager` entry in the system VPN preferences.
   The wg-quick text itself is stored in the **Keychain** as a generic password; the manager's
   `protocolConfiguration.passwordReference` holds the persistent reference
@@ -219,18 +237,25 @@ ids with the Network Extensions capability — there is no entitlement-free path
 
 ## Testing
 
-There are **no automated tests**: no XCTest targets, no Go tests, no CI.
-`Sources/Shared/Logging/test_ringlogger.c` is a standalone C harness not wired into any target.
-Adding any harness is a tooling decision that requires explicit approval (see
-`.claude/rules/project.md` → Testing). Tunnel behavior is validated manually on a signed build.
+- **`WireGuardKitTests`** is a macOS unit-test bundle target compiling the model, serialization,
+  view-model, and highlighter sources directly (no `libwg-go.a` link, no signing, no network, no
+  device). Scope: `WsUrl` parsing, wg-quick round-trip + validation, UAPI generation + readback,
+  the highlighter's key/URL acceptance, and the `TunnelViewModel` WS validation surface. Run:
+  `xcodebuild -project WireGuard.xcodeproj -target WireGuardKitTests -configuration Debug build
+  SYMROOT=build` then `xcrun xctest build/Debug/WireGuardKitTests.xctest`.
+- There are no Go tests (the bridge is mechanical cgo glue under the cross-compiled exemption) and
+  no CI. `Sources/Shared/Logging/test_ringlogger.c` is a standalone C harness not wired into any
+  target. Adding any FURTHER harness is a tooling decision that requires explicit approval (see
+  `.claude/rules/project.md` → Testing). Tunnel behavior is validated manually on a signed build.
 
 ## Roadmap
 
-- **WebSocket/wstunnel transport support** (the fork's goal): consume the sibling
-  `danielealbano/wireguard-go` fork (UDP + WebSocket multiplex bind), extend the config model,
-  wg-quick parsing, UAPI generation, and both platforms' editors with the per-peer WebSocket
-  surface (byte-compatible with the sibling `wireguard-tools` fork), keeping full parity with the
-  existing UDP behavior on iOS AND macOS. Execution scope and sequencing are a pending discussion.
+- **WebSocket/wstunnel transport support** (the fork's goal): **delivered in code by plan 1**
+  (`docs/plans/1_websocket_wstunnel_transport_20260808170409.md`) — fork consumption, config
+  model, all serialization surfaces, both platforms' UI, and the unit-test harness. Live-tunnel
+  validation on device (W6) is Manual Test, pending the Apple Developer Program enrollment (P1).
+- The high-level work breakdown (prerequisites, work items, inherited debt, open decisions) is
+  tracked in `WORK_INDEX.md`.
 
 ## License
 

@@ -100,10 +100,8 @@ class Keychain {
             return
         }
         guard let items = result as? [Data] else { return }
-        for item in items {
-            if !whitelist.contains(item) {
-                deleteReference(called: item)
-            }
+        for item in items where !whitelist.contains(item) {
+            deleteReference(called: item)
         }
     }
 

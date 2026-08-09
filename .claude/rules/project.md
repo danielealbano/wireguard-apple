@@ -9,12 +9,12 @@ preferences with the wg-quick config text in the **Keychain**.
 
 > **STATUS: this is a FORK of upstream `WireGuard/wireguard-apple`** (`origin` =
 > `github.com/danielealbano/wireguard-apple`, `upstream` = `github.com/WireGuard/wireguard-apple`).
-> **GOAL (ROADMAP — not started):** add **per-peer WebSocket/wstunnel transport** support with
-> logical and functional parity with the existing UDP handling, on BOTH iOS and macOS, by consuming
-> the sibling **`danielealbano/wireguard-go` fork** (which provides the WebSocket transport and a
-> UDP+WebSocket multiplex bind), with a config surface byte-compatible with the sibling
-> `wireguard-tools` fork. How that work will be executed is a pending discussion; non-trivial work
-> proceeds via the development pipeline per `development_pipeline.md`. The canonical docs MUST be
+> **GOAL — DELIVERED IN CODE (plan 1):** per-peer **WebSocket/wstunnel transport** support with
+> logical and functional parity with the existing UDP handling, on BOTH iOS and macOS, consuming
+> the sibling **`danielealbano/wireguard-go` fork `v1.3.0`** (WebSocket transport + UDP+WebSocket
+> multiplex bind), with a config surface byte-compatible with the sibling `wireguard-tools` fork.
+> Live-tunnel validation (W6) is Manual Test, pending ADP enrollment (P1). Non-trivial work
+> proceeds via the development pipeline per `development_pipeline.md`; the canonical docs MUST be
 > kept current as decisions land.
 
 ## MANDATORY: Read These First
@@ -27,6 +27,8 @@ You MUST ALWAYS read these before ANY work, in this order:
    NETunnelProviderManager, Keychain), the tunnel up/down flow through the Network Extension +
    WireGuardAdapter + cgo bridge, the network-path-change handling, and the config data model
    (with Mermaid charts).
+3. **`docs/WORK_INDEX.md`** — the high-level work index: prerequisites, the WebSocket work items,
+   inherited debt, and the open decisions gating them.
 
 You MUST ALSO follow, per the Rule Map below: `agent.md`, `development_pipeline.md`, `swift.md`
 (all Swift code), `go.md` (the WireGuardKitGo bridge), `apple.md` (Xcode/platform/signing), and
@@ -48,7 +50,7 @@ Re-verify before bumping.
 |---|---|---|
 | App language | **Swift** (`SWIFT_VERSION = 5.0`) | UIKit (iOS, programmatic — no storyboards except launch) and AppKit (macOS menu-bar app). No SwiftUI. |
 | Shared kit | **WireGuardKit** (Swift) + **WireGuardKitC** (C) | Config model, UAPI generation, adapter; C key/x25519 helpers. Also consumable by third parties via `Package.swift` (SPM). |
-| Userspace core | **Go** (cgo `c-archive`) | `Sources/WireGuardKitGo` → universal `libwg-go.a`, wrapping `golang.zx2c4.com/wireguard`. Module `golang.zx2c4.com/wireguard/apple`, `go` directive 1.17, core pinned `v0.0.0-20230209153558-1e2c3e5a3c14`. |
+| Userspace core | **Go** (cgo `c-archive`) | `Sources/WireGuardKitGo` → universal `libwg-go.a`, wrapping the sibling fork `github.com/danielealbano/wireguard-go v1.3.0` (via `replace`; UDP+WebSocket multiplex bind). Module `golang.zx2c4.com/wireguard/apple`, `go` directive 1.26.5, pinned-download toolchain (`GOTOOLCHAIN=local`). |
 | Build system | **Xcode project** (`WireGuard.xcodeproj`) + xcconfig | Deployment: **iOS 15.0 / macOS 12.0**. Go bridge built by `make` via legacy (external build tool) targets. No shared schemes are committed (`*.xcscheme` gitignored). |
 | App identity/config | `Config.xcconfig` → `Version.xcconfig` (+ gitignored `Developer.xcconfig`) | `VERSION_NAME`/`VERSION_ID`; `DEVELOPMENT_TEAM`, `APP_ID_IOS`, `APP_ID_MACOS` are developer-local. |
 | VPN | `NetworkExtension` packet tunnel (`NEPacketTunnelProvider`) | One NE appex per platform; app ↔ NE via system VPN preferences, app group container, and provider messages. |
@@ -56,7 +58,7 @@ Re-verify before bumping.
 | Logging | `os_log` + `ringlogger.c` ring-buffer file in the app group container | Tags `APP` / `NET`; log export via `LogViewHelper`. |
 | Lint | **SwiftLint** (`.swiftlint.yml` + Xcode build phase) | Also a trailing-whitespace-strip build phase. No other lint/format tooling. |
 | Localization | `Base.lproj` + 18 languages, Crowdin | `sync-translations.sh`; `tr()` helper (`LocalizationHelper.swift`). |
-| Tests / CI | **NONE** | No test targets, no CI. `test_ringlogger.c` is a standalone harness NOT wired into any target. |
+| Tests / CI | **`WireGuardKitTests`** (no CI) | macOS unit-test bundle (model/serialization/view-model/highlighter). `test_ringlogger.c` is a standalone harness NOT wired into any target. |
 
 ### Xcode targets
 
@@ -170,28 +172,39 @@ to `Sources/WireGuardApp/Config/Developer.xcconfig` and fill in `DEVELOPMENT_TEA
 | Go vet | `cd Sources/WireGuardKitGo && go vet ./...` (works on a macOS host) |
 | Go tidy | `cd Sources/WireGuardKitGo && go mod tidy` |
 | Go vulncheck | `cd Sources/WireGuardKitGo && govulncheck ./...` |
+| Tests (build) | `xcodebuild -project WireGuard.xcodeproj -target WireGuardKitTests -configuration Debug build SYMROOT=build` |
+| Tests (run) | `xcrun xctest build/Debug/WireGuardKitTests.xctest` |
 | Mermaid check | validate all Mermaid blocks under `docs/` per `development_pipeline.md` §9 |
 
 **Quality gates** (per `development_pipeline.md` §2, `apple.md`, `swift.md`, `go.md`): a clean
 build of the iOS AND macOS app targets (which drive the NE + GoBridge targets), **SwiftLint** with
 ZERO violations beyond the committed configuration, the **Go bridge** clean (`go vet` /
-`go mod tidy` with NO diff / `govulncheck`), and **Mermaid validation** (when charts were touched)
-MUST ALL pass before any work is DONE. There is NO automated test suite yet (see Testing).
+`go mod tidy` with NO diff / `govulncheck`), the **`WireGuardKitTests` suite passing**, and
+**Mermaid validation** (when charts were touched) MUST ALL pass before any work is DONE.
 
-**Known pre-existing debt (inherited from upstream, verified 2026-08-08):** `go vet` reports 3
-findings in `api-apple.go` (unbuffered `os.Signal` channel; two `unsafe.Pointer` misuse warnings).
-These predate the fork; fixing them MUST be part of the first change that touches the Go bridge.
+**TEMPORARY deviation (user-approved, until ADP/P1–P2 complete):** the app/NE targets are
+compile-verified with `CODE_SIGNING_ALLOWED=NO` appended to the build commands; the signed build
+MUST be re-verified once the paid account is active, and this note MUST then be removed.
+All quality gates have now been executed green with Xcode 26.6 and SwiftLint 0.65.0 (both apps
+built with `CODE_SIGNING_ALLOWED=NO`, the `WireGuardKitTests` suite passing via `xcrun xctest`,
+both Go-bridge platforms, and SwiftLint at ZERO violations); only the SIGNED-build re-verification
+remains, pending ADP enrollment (P1). `.swiftlint.yml` excludes the generated build-output dirs
+(`build`/`.build`).
 
 ---
 
 ## Testing — ABSOLUTE (project-specific)
 
-- **There are NO automated tests in this repo**: no XCTest targets, no Go tests, no CI.
-  `Sources/Shared/Logging/test_ringlogger.c` is a standalone C harness NOT compiled by any target.
-  You MUST NOT pretend a harness exists.
-- **Adding any test target/harness is a tooling decision that REQUIRES the user's explicit
-  approval** (see `apple.md`/`swift.md`). Until then: keep new logic testable (pure Swift/Go,
-  platform-free) and document validation as **Manual Test** steps.
+- **`WireGuardKitTests`** is THE automated harness: a macOS unit-test bundle compiling the
+  model, serialization, view-model, and highlighter sources directly (no `libwg-go.a` link, no
+  device, no network, no entitlements, no signing). Run it via the Standard Commands above.
+  `Sources/Shared/Logging/test_ringlogger.c` remains a standalone C harness NOT compiled by any
+  target. There are no Go tests (mechanical cgo glue under `go.md`'s cross-compiled exemption)
+  and no CI.
+- **Adding any FURTHER test target/harness (UI tests, Go tests, CI, device farms) is a tooling
+  decision that REQUIRES the user's explicit approval** (see `apple.md`/`swift.md`). Keep new
+  logic testable (pure Swift/Go, platform-free) and document device-dependent validation as
+  **Manual Test** steps.
 - Any host-testable pure Go added under `Sources/WireGuardKitGo` MUST follow `go.md` §3 (stdlib
   `testing`, table-driven, `-race`) — the cross-compiled cgo exemption in `go.md` applies ONLY to
   the mechanical `//export` glue.

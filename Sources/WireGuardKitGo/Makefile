@@ -9,7 +9,6 @@ SDKROOT ?= $(shell xcrun --sdk $(PLATFORM_NAME) --show-sdk-path)
 CONFIGURATION_BUILD_DIR ?= $(CURDIR)/out
 CONFIGURATION_TEMP_DIR ?= $(CURDIR)/.tmp
 
-export PATH := $(PATH):/usr/local/bin:/opt/homebrew/bin
 export CC ?= clang
 LIPO ?= lipo
 DESTDIR ?= $(CONFIGURATION_BUILD_DIR)
@@ -21,15 +20,39 @@ GOARCH_x86_64 := amd64
 GOOS_macosx := darwin
 GOOS_iphoneos := ios
 
+# Pinned Go toolchain: downloaded (SHA256-verified), then patched with the boottime diff.
+# The system Go is NOT used for artifact builds — Go's automatic toolchain switching would
+# silently bypass the patched GOROOT, producing binaries whose timers stop across device sleep.
+GO_VERSION := 1.26.5
+GO_HOST_ARCH_arm64 := arm64
+GO_HOST_ARCH_x86_64 := amd64
+GO_PLATFORM := darwin-$(GO_HOST_ARCH_$(shell uname -m))
+GO_TARBALL := go$(GO_VERSION).$(GO_PLATFORM).tar.gz
+GO_HASH_darwin-amd64 := 6231d8d3b8f5552ec6cbf6d685bdd5482e1e703214b120e89b3bf0d7bf1ef725
+GO_HASH_darwin-arm64 := efb87ff28af9a188d0536ef5d42e63dd52ba8263cd7344a993cc48dd11dedb6a
+GO_HASH := $(GO_HASH_$(GO_PLATFORM))
+# The tarball cache survives `clean` so a clean rebuild does not re-download the toolchain;
+# the SHA256 is verified at download time and the extracted GOROOT is rebuilt from it as needed.
+GO_CACHE_DIR := $(CURDIR)/.cache
+
+export GOROOT := $(BUILDDIR)/goroot
+export GOTOOLCHAIN := local
+export PATH := $(GOROOT)/bin:$(PATH):/usr/local/bin:/opt/homebrew/bin
+
 build: $(DESTDIR)/libwg-go.a
 version-header: $(DESTDIR)/wireguard-go-version.h
 
-REAL_GOROOT := $(shell go env GOROOT 2>/dev/null)
-export GOROOT := $(BUILDDIR)/goroot
-$(GOROOT)/.prepared:
-	[ -n "$(REAL_GOROOT)" ]
+$(GO_CACHE_DIR)/$(GO_TARBALL):
+	[ -n "$(GO_HASH)" ]
+	mkdir -p "$(GO_CACHE_DIR)"
+	curl -fLo "$@.tmp" "https://go.dev/dl/$(GO_TARBALL)"
+	echo "$(GO_HASH)  $@.tmp" | shasum -a 256 -c
+	mv "$@.tmp" "$@"
+
+$(GOROOT)/.prepared: $(GO_CACHE_DIR)/$(GO_TARBALL)
+	rm -rf "$(GOROOT)"
 	mkdir -p "$(GOROOT)"
-	rsync -a --delete --exclude=pkg/obj/go-build "$(REAL_GOROOT)/" "$(GOROOT)/"
+	tar -C "$(GOROOT)" --strip-components=1 -xzf "$(GO_CACHE_DIR)/$(GO_TARBALL)"
 	cat goruntime-*.diff | patch -p1 -f -N -r- -d "$(GOROOT)"
 	touch "$@"
 
@@ -45,8 +68,11 @@ $(BUILDDIR)/libwg-go-$(1).a: $(GOROOT)/.prepared go.mod
 endef
 $(foreach ARCH,$(ARCHS),$(eval $(call libwg-go-a,$(ARCH))))
 
-$(DESTDIR)/wireguard-go-version.h: go.mod $(GOROOT)/.prepared
-	 sed -E -n 's/.*golang\.zx2c4\.com\/wireguard +v[0-9.]+-[0-9]+-([0-9a-f]{8})[0-9a-f]{4}.*/#define WIREGUARD_GO_VERSION "\1"/p' "$<" > "$@"
+$(DESTDIR)/wireguard-go-version.h: go.mod
+	 @mkdir -p "$(DESTDIR)"
+	 sed -E -n 's/.*danielealbano\/wireguard-go +v([0-9][0-9.]*).*/#define WIREGUARD_GO_VERSION "\1"/p' "$<" > "$@.tmp"
+	 [ -s "$@.tmp" ]
+	 mv "$@.tmp" "$@"
 
 $(DESTDIR)/libwg-go.a: $(foreach ARCH,$(ARCHS),$(BUILDDIR)/libwg-go-$(ARCH).a)
 	@mkdir -vp "$(DESTDIR)"
