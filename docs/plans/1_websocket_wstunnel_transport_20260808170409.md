@@ -2369,8 +2369,19 @@ DoD: every checkbox in this plan is `[x]`; all quality gates green; deviations r
    `iphoneos` Go-bridge build (no iOS SDK), and `swiftlint` CANNOT run here. Executed instead:
    the full macOS Go-bridge build (pinned-toolchain download + patch + fork compile + lipo,
    green), `go vet` ZERO findings, `go mod tidy` no diff, `govulncheck` clean, Mermaid 5/5 OK,
-   `swiftc -typecheck` of the entire changed Swift surface (0 errors, 0 warnings), and ALL 52
+   `swiftc -typecheck` of the host-checkable changed Swift surface — the kit model, both
+   serialization surfaces, the view model, and the macOS error mapping (0 errors, 0 warnings;
+   the iOS UIKit view controllers CANNOT be typechecked here — no iOS SDK without Xcode — and
+   are verified ONLY by the pending `xcodebuild -target WireGuardiOS` gate), and ALL 52
    tests EXECUTED green on the host via a scratchpad-only XCTest shim (the real production
    sources + compiled `highlighter.c`/`key.c`/`x25519.c`; nothing shim-related is committed).
    The blocked gates MUST be re-run once Xcode + swiftlint are installed, together with the
    already-recorded signed-build re-verification (see `project.md` → TEMPORARY deviation).
+5. **US9 — `swift package dump-package` was FAILING and `Package.swift` was fixed**: the US9
+   checkbox was originally ticked in error (the failure was misread as a host-toolchain issue).
+   The manifest was broken on `main` independently of this plan: it declares
+   `swift-tools-version:5.3` but used `.macOS(.v12)`/`.iOS(.v15)`, which require
+   PackageDescription 5.5, so it failed on EVERY toolchain. Root-cause fix applied per the
+   fix-broken-builds rule: string-based platform versions (`.macOS("12.0")`/`.iOS("15.0")`),
+   which are valid at tools-version 5.3 — the consumer-facing tools-version floor is unchanged.
+   `swift package dump-package` now succeeds (verified on this host).
