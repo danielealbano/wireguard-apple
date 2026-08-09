@@ -128,3 +128,5 @@ class MainMenu: NSMenu {
     func undo(_ sender: AnyObject)
     func redo(_ sender: AnyObject)
 }
+
+// swiftlint:enable colon

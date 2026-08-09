@@ -185,10 +185,11 @@ ZERO violations beyond the committed configuration, the **Go bridge** clean (`go
 **TEMPORARY deviation (user-approved, until ADP/P1–P2 complete):** the app/NE targets are
 compile-verified with `CODE_SIGNING_ALLOWED=NO` appended to the build commands; the signed build
 MUST be re-verified once the paid account is active, and this note MUST then be removed.
-Additionally, SwiftLint is not yet installed on the dev host, so the SwiftLint gate is PENDING
-first execution — run it as soon as swiftlint is installed (all `xcodebuild` gates, the test
-suite, and both Go-bridge platform builds have been executed green with Xcode 26.6; see plan 1
-`## Deviations`).
+All quality gates have now been executed green with Xcode 26.6 and SwiftLint 0.65.0 (both apps
+built with `CODE_SIGNING_ALLOWED=NO`, the `WireGuardKitTests` suite passing via `xcrun xctest`,
+both Go-bridge platforms, and SwiftLint at ZERO violations); only the SIGNED-build re-verification
+remains, pending ADP enrollment (P1). `.swiftlint.yml` excludes the generated build-output dirs
+(`build`/`.build`).
 
 ---
 

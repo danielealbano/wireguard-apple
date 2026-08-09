@@ -174,7 +174,7 @@ class TunnelViewModel {
                 return .saved((name, config))
             }
             fieldsWithError.removeAll()
-            guard let name = scratchpad[.name]?.trimmingCharacters(in: .whitespacesAndNewlines), (!name.isEmpty) else {
+            guard let name = scratchpad[.name]?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else {
                 fieldsWithError.insert(.name)
                 return .error(tr("alertInvalidInterfaceMessageNameRequired"))
             }
@@ -749,13 +749,11 @@ class TunnelViewModel {
         }
 
         var addedPeerIndices = [Int]()
-        for otherPeer in other.peers {
-            if !peersData.contains(where: { $0.publicKey == otherPeer.publicKey }) {
-                addedPeerIndices.append(peersData.count)
-                let peerData = PeerData(index: peersData.count)
-                peerData.validatedConfiguration = otherPeer
-                peersData.append(peerData)
-            }
+        for otherPeer in other.peers where !peersData.contains(where: { $0.publicKey == otherPeer.publicKey }) {
+            addedPeerIndices.append(peersData.count)
+            let peerData = PeerData(index: peersData.count)
+            peerData.validatedConfiguration = otherPeer
+            peersData.append(peerData)
         }
 
         for (index, peer) in peersData.enumerated() {

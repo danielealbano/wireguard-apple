@@ -2385,6 +2385,17 @@ DoD: every checkbox in this plan is `[x]`; all quality gates green; deviations r
    `xcrun xctest` (0 failures), and the `iphoneos` Go-bridge build is green. ONLY the SwiftLint
    gate remains pending (the binary is not installed; installation awaits user consent) plus the
    signed-build re-verification once ADP completes.
+8. **SwiftLint (code-review fix, user-approved out-of-scope cleanup)**: SwiftLint 0.65.0 flagged
+   11 pre-existing warnings on `main` (none in the WebSocket feature code) plus, once installed,
+   the SwiftLint build phase failed the build by linting Apple's generated `GeneratedAssetSymbols`
+   under an in-repo `SYMROOT=build`. Per explicit user approval, all 11 were fixed at the root
+   cause across their files (for-where, trailing-closure, `Data(_:)`/`String(bytes:encoding:)`
+   inits, `lazy var`, dropped redundant synthesized initializer, bounded the sanctioned `colon`
+   disable in `MainMenu.swift` with a matching `enable`, renamed the over-long
+   `SSIDOptionEditTableViewControllerDelegate`), and `.swiftlint.yml` now excludes the generated
+   build-output dirs (`build`, `.build`) — an artifact exclusion, NOT a source-finding
+   suppression. Full-repo SwiftLint is 0 violations; both apps, the test bundle, and both
+   Go-bridge platforms build green.
 5. **US9 — `swift package dump-package` was FAILING and `Package.swift` was fixed**: the US9
    checkbox was originally ticked in error (the failure was misread as a host-toolchain issue).
    The manifest was broken on `main` independently of this plan: it declares

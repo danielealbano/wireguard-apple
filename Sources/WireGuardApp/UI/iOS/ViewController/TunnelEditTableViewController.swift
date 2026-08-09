@@ -253,7 +253,7 @@ extension TunnelEditTableViewController {
             cell.placeholderText = tr("tunnelEditPlaceholderTextStronglyRecommended")
             cell.keyboardType = .numbersAndPunctuation
         case .dns:
-            cell.placeholderText = tunnelViewModel.peersData.contains(where: { $0.shouldStronglyRecommendDNS }) ? tr("tunnelEditPlaceholderTextStronglyRecommended") : tr("tunnelEditPlaceholderTextOptional")
+            cell.placeholderText = tunnelViewModel.peersData.contains { $0.shouldStronglyRecommendDNS } ? tr("tunnelEditPlaceholderTextStronglyRecommended") : tr("tunnelEditPlaceholderTextOptional")
             cell.keyboardType = .numbersAndPunctuation
         case .listenPort, .mtu:
             cell.placeholderText = tr("tunnelEditPlaceholderTextAutomatic")
@@ -648,7 +648,7 @@ extension TunnelEditTableViewController: UIDocumentPickerDelegate {
     }
 }
 
-extension TunnelEditTableViewController: SSIDOptionEditTableViewControllerDelegate {
+extension TunnelEditTableViewController: SSIDOptionEditViewControllerDelegate {
     func ssidOptionSaved(option: ActivateOnDemandViewModel.OnDemandSSIDOption, ssids: [String]) {
         onDemandViewModel.selectedSSIDs = ssids
         onDemandViewModel.ssidOption = option

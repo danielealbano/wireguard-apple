@@ -5,7 +5,7 @@ import UIKit
 import SystemConfiguration.CaptiveNetwork
 import NetworkExtension
 
-protocol SSIDOptionEditTableViewControllerDelegate: AnyObject {
+protocol SSIDOptionEditViewControllerDelegate: AnyObject {
     func ssidOptionSaved(option: ActivateOnDemandViewModel.OnDemandSSIDOption, ssids: [String])
 }
 
@@ -21,7 +21,7 @@ class SSIDOptionEditTableViewController: UITableViewController {
         case addNewSSID
     }
 
-    weak var delegate: SSIDOptionEditTableViewControllerDelegate?
+    weak var delegate: SSIDOptionEditViewControllerDelegate?
 
     private var sections = [Section]()
     private var addSSIDRows = [AddSSIDRow]()
