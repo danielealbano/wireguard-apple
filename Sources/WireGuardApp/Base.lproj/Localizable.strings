@@ -497,3 +497,5 @@
 "macAlertWstunnelRequiresTarget" = "WSMode=wstunnel requires WSTunnelTarget";
 "macAlertWsTunnelTargetForbidden" = "WSTunnelTarget requires WSMode=wstunnel and a ws(s):// Endpoint";
 "macAlertWsKeyWithoutWsMode (%@)" = "'%@' requires WSMode";
+
+"aboutAttribution" = "Unofficial build based on the original WireGuard application by WireGuard LLC, extended with WebSocket/wstunnel transport through the danielealbano/wireguard-go backend fork. 'WireGuard' and the 'WireGuard' logo are registered trademarks of Jason A. Donenfeld.";

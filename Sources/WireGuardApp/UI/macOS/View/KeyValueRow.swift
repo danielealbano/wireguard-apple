@@ -97,7 +97,7 @@ class EditableKeyValueRow: NSView {
         keyLabel.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         valueLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
-        let widthConstraint = keyLabel.widthAnchor.constraint(equalToConstant: 150)
+        let widthConstraint = keyLabel.widthAnchor.constraint(equalToConstant: 200)
         widthConstraint.priority = .defaultHigh + 1
         widthConstraint.isActive = true
     }

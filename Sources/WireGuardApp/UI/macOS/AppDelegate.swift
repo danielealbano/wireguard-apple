@@ -198,10 +198,13 @@ extension AppDelegate {
             tr(format: "macGoBackendVersion (%@)", WIREGUARD_GO_VERSION)
         ].joined(separator: "\n")
         NSApp.activate(ignoringOtherApps: true)
+        let credits = NSMutableAttributedString(string: tr("aboutAttribution"), attributes: [
+            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        ])
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationVersion: appVersionString,
             .version: "",
-            .credits: ""
+            .credits: credits
         ])
     }
 }
