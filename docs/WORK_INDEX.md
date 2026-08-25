@@ -13,9 +13,9 @@ fix bundled with the first touching change).
 
 | ID | Item | Status | Notes |
 |---|---|---|---|
-| P1 | Apple Developer Program enrollment (paid) | PREREQUISITE — enrollment underway | Required for the packet-tunnel Network Extension entitlement; there is no entitlement-free path (see `PROJECT.md` → Building) |
-| P2 | Local signing setup | PREREQUISITE | `Developer.xcconfig` with `DEVELOPMENT_TEAM` + `APP_ID_IOS`/`APP_ID_MACOS` (app ids registered with the Network Extensions capability); file stays gitignored |
-| P3 | Baseline build validation | PREREQUISITE | Build the UNMODIFIED fork for both platforms on the dev machine (validates Xcode, `go`, `swiftlint` toolchain) before any change lands |
+| P1 | Apple Developer Program enrollment (paid) | **DONE (2026-08-25)** | Required for the packet-tunnel Network Extension entitlement; there is no entitlement-free path (see `PROJECT.md` → Building) |
+| P2 | Local signing setup | **DONE (2026-08-25)** | `Developer.xcconfig` with `DEVELOPMENT_TEAM` + `APP_ID_IOS`/`APP_ID_MACOS` (app ids registered with the Network Extensions capability); file stays gitignored |
+| P3 | Baseline build validation | **DONE** | Build the UNMODIFIED fork for both platforms on the dev machine (validates Xcode, `go`, `swiftlint` toolchain) before any change lands |
 
 ## 2. WebSocket/wstunnel transport — the fork's goal
 

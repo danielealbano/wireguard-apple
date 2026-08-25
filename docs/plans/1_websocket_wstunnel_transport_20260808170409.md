@@ -2396,6 +2396,12 @@ DoD: every checkbox in this plan is `[x]`; all quality gates green; deviations r
    build-output dirs (`build`, `.build`) — an artifact exclusion, NOT a source-finding
    suppression. Full-repo SwiftLint is 0 violations; both apps, the test bundle, and both
    Go-bridge platforms build green.
+9. **US9 — SIGNED builds re-verified (ADP active, 2026-08-25)**: with the enrolled team
+   (`Developer.xcconfig` filled locally) and the Mac registered as a development device, the
+   macOS app built SIGNED in Debug AND Release and the iOS app built SIGNED in Debug via
+   `-allowProvisioningUpdates`; the products carry the `packet-tunnel-provider` entitlement and
+   app groups under the correct team. The temporary `CODE_SIGNING_ALLOWED=NO` deviation is
+   retired in `project.md`. Remaining Manual Test: live-tunnel validation (W6).
 5. **US9 — `swift package dump-package` was FAILING and `Package.swift` was fixed**: the US9
    checkbox was originally ticked in error (the failure was misread as a host-toolchain issue).
    The manifest was broken on `main` independently of this plan: it declares

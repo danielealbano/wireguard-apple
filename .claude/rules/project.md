@@ -182,14 +182,11 @@ ZERO violations beyond the committed configuration, the **Go bridge** clean (`go
 `go mod tidy` with NO diff / `govulncheck`), the **`WireGuardKitTests` suite passing**, and
 **Mermaid validation** (when charts were touched) MUST ALL pass before any work is DONE.
 
-**TEMPORARY deviation (user-approved, until ADP/P1–P2 complete):** the app/NE targets are
-compile-verified with `CODE_SIGNING_ALLOWED=NO` appended to the build commands; the signed build
-MUST be re-verified once the paid account is active, and this note MUST then be removed.
-All quality gates have now been executed green with Xcode 26.6 and SwiftLint 0.65.0 (both apps
-built with `CODE_SIGNING_ALLOWED=NO`, the `WireGuardKitTests` suite passing via `xcrun xctest`,
-both Go-bridge platforms, and SwiftLint at ZERO violations); only the SIGNED-build re-verification
-remains, pending ADP enrollment (P1). `.swiftlint.yml` excludes the generated build-output dirs
-(`build`/`.build`).
+All quality gates have been executed green with Xcode 26.6 and SwiftLint 0.65.0: both apps built
+SIGNED (`-allowProvisioningUpdates`; ADP team active — macOS Debug+Release and iOS Debug, with
+the packet-tunnel entitlements verified on the products), the `WireGuardKitTests` suite passing
+via `xcrun xctest`, both Go-bridge platforms, and SwiftLint at ZERO violations. `.swiftlint.yml`
+excludes the generated build-output dirs (`build`/`.build`).
 
 ---
 
