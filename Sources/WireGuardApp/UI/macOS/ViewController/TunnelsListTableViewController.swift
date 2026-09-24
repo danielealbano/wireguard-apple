@@ -40,7 +40,7 @@ class TunnelsListTableViewController: NSViewController {
         return button
     }()
 
-    let removeButton: NSButton = {
+    lazy var removeButton: NSButton = {
         let image = NSImage(named: NSImage.removeTemplateName)!
         let button = NSButton(image: image, target: self, action: #selector(handleRemoveTunnelAction))
         button.bezelStyle = .smallSquare

@@ -11,8 +11,8 @@ class TunnelEditKeyValueCell: KeyValueCell {
         keyLabel.textAlignment = .right
         valueTextField.textAlignment = .left
 
-        let widthRatioConstraint = NSLayoutConstraint(item: keyLabel, attribute: .width, relatedBy: .equal, toItem: self, attribute: .width, multiplier: 0.4, constant: 0)
-        // In case the key doesn't fit into 0.4 * width,
+        let widthRatioConstraint = NSLayoutConstraint(item: keyLabel, attribute: .width, relatedBy: .equal, toItem: self, attribute: .width, multiplier: 0.5, constant: 0)
+        // In case the key doesn't fit into 0.5 * width,
         // set a CR priority > the 0.4-constraint's priority.
         widthRatioConstraint.priority = .defaultHigh + 1
         widthRatioConstraint.isActive = true

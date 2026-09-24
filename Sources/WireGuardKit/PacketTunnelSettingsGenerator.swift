@@ -33,6 +33,11 @@ class PacketTunnelSettingsGenerator {
             if case .success((_, let resolvedEndpoint)) = result {
                 if case .name = resolvedEndpoint.host { assert(false, "Endpoint is not resolved") }
                 wgSettings.append("endpoint=\(resolvedEndpoint.stringRepresentation)\n")
+                // The backend ignores an endpoint update for a WS peer that arrives without
+                // ws_url, so the endpoint travels with the full ws_* block.
+                if peer.wsUrl != nil {
+                    wgSettings.append(Self.wsUapiConfiguration(for: peer))
+                }
             }
             resolutionResults.append(result)
         }
@@ -53,16 +58,27 @@ class PacketTunnelSettingsGenerator {
         assert(tunnelConfiguration.peers.count == resolvedEndpoints.count)
         for (peer, resolvedEndpoint) in zip(self.tunnelConfiguration.peers, self.resolvedEndpoints) {
             wgSettings.append("public_key=\(peer.publicKey.hexKey)\n")
+            wgSettings.append("transport=\(peer.uapiTransport)\n")
             if let preSharedKey = peer.preSharedKey?.hexKey {
                 wgSettings.append("preshared_key=\(preSharedKey)\n")
             }
 
+            // A dialing WS peer's ws_* block (incl. ws_url=) travels only WITH a successfully
+            // resolved endpoint= line: the backend rejects ws_url without endpoint and the whole
+            // set operation would fail. On resolution failure the peer is created endpoint-less,
+            // exactly like a UDP peer. Inbound peers (mode, no URL) always emit their settings.
             let result = resolvedEndpoint.map(Self.reresolveEndpoint)
             if case .success((_, let resolvedEndpoint)) = result {
                 if case .name = resolvedEndpoint.host { assert(false, "Endpoint is not resolved") }
                 wgSettings.append("endpoint=\(resolvedEndpoint.stringRepresentation)\n")
+                if peer.wsUrl != nil {
+                    wgSettings.append(Self.wsUapiConfiguration(for: peer))
+                }
             }
             resolutionResults.append(result)
+            if peer.wsMode != nil && peer.wsUrl == nil {
+                wgSettings.append(Self.wsUapiConfiguration(for: peer))
+            }
 
             let persistentKeepAlive = peer.persistentKeepAlive ?? 0
             wgSettings.append("persistent_keepalive_interval=\(persistentKeepAlive)\n")
@@ -72,6 +88,44 @@ class PacketTunnelSettingsGenerator {
             }
         }
         return (wgSettings, resolutionResults)
+    }
+
+    private class func wsUapiConfiguration(for peer: PeerConfiguration) -> String {
+        var wgSettings = ""
+        if let wsUrl = peer.wsUrl {
+            wgSettings.append("ws_url=\(wsUrl.urlString)\n")
+        }
+        if let wstunnelTarget = peer.wstunnelTarget {
+            wgSettings.append("wstunnel_target=\(wstunnelTarget)\n")
+        }
+        if let wsBearer = peer.wsBearer {
+            wgSettings.append("ws_bearer=\(wsBearer)\n")
+        }
+        if peer.wsMask {
+            wgSettings.append("ws_mask=true\n")
+        }
+        if let wsTlsCa = peer.wsTlsCa {
+            wgSettings.append("ws_tls_ca=\(wsTlsCa)\n")
+        }
+        if let wsTlsCert = peer.wsTlsCert {
+            wgSettings.append("ws_tls_cert=\(wsTlsCert)\n")
+        }
+        if let wsTlsKey = peer.wsTlsKey {
+            wgSettings.append("ws_tls_key=\(wsTlsKey)\n")
+        }
+        if peer.wsTlsInsecure {
+            wgSettings.append("ws_tls_insecure=true\n")
+        }
+        if let wsPingIntervalMs = peer.wsPingIntervalMs {
+            wgSettings.append("ws_ping_interval=\(wsPingIntervalMs)\n")
+        }
+        if let wsBackoffMinMs = peer.wsBackoffMinMs {
+            wgSettings.append("ws_backoff_min=\(wsBackoffMinMs)\n")
+        }
+        if let wsBackoffMaxMs = peer.wsBackoffMaxMs {
+            wgSettings.append("ws_backoff_max=\(wsBackoffMaxMs)\n")
+        }
+        return wgSettings
     }
 
     func generateNetworkSettings() -> NEPacketTunnelNetworkSettings {

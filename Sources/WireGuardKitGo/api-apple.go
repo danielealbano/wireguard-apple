@@ -21,6 +21,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -56,10 +57,13 @@ type tunnelHandle struct {
 	*device.Logger
 }
 
-var tunnelHandles = make(map[int32]tunnelHandle)
+var (
+	tunnelHandles      = make(map[int32]tunnelHandle)
+	tunnelHandlesMutex sync.Mutex
+)
 
 func init() {
-	signals := make(chan os.Signal)
+	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, unix.SIGUSR2)
 	go func() {
 		buf := make([]byte, os.Getpagesize())
@@ -77,9 +81,9 @@ func init() {
 }
 
 //export wgSetLogger
-func wgSetLogger(context, loggerFn uintptr) {
-	loggerCtx = unsafe.Pointer(context)
-	loggerFunc = unsafe.Pointer(loggerFn)
+func wgSetLogger(context, loggerFn unsafe.Pointer) {
+	loggerCtx = context
+	loggerFunc = loggerFn
 }
 
 //export wgTurnOn
@@ -100,25 +104,43 @@ func wgTurnOn(settings *C.char, tunFd int32) int32 {
 		unix.Close(dupTunFd)
 		return -1
 	}
-	tun, err := tun.CreateTUNFromFile(os.NewFile(uintptr(dupTunFd), "/dev/tun"), 0)
+	tunDev, err := tun.CreateTUNFromFile(os.NewFile(uintptr(dupTunFd), "/dev/tun"), 0)
 	if err != nil {
 		logger.Errorf("Unable to create new tun device from fd: %v", err)
 		unix.Close(dupTunFd)
 		return -1
 	}
 	logger.Verbosef("Attaching to interface")
-	dev := device.NewDevice(tun, conn.NewStdNetBind(), logger)
+
+	// One bind for UDP and WebSocket/wstunnel peers: the UDP data path is the unchanged
+	// platform StdNetBind; WS peers dial through the WebSocket sub-bind. No fd-protect
+	// upcall is needed on Apple platforms.
+	bind, err := conn.NewMultiplexBind(
+		conn.WithWSLogger(conn.Logger{Verbosef: logger.Verbosef, Errorf: logger.Errorf}),
+	)
+	if err != nil {
+		logger.Errorf("Unable to create multiplex bind: %v", err)
+		tunDev.Close()
+		return -1
+	}
+	dev := device.NewDevice(tunDev, bind, logger)
 
 	err = dev.IpcSet(C.GoString(settings))
 	if err != nil {
 		logger.Errorf("Unable to set IPC settings: %v", err)
-		unix.Close(dupTunFd)
+		dev.Close()
 		return -1
 	}
 
-	dev.Up()
+	err = dev.Up()
+	if err != nil {
+		logger.Errorf("Unable to bring up device: %v", err)
+		dev.Close()
+		return -1
+	}
 	logger.Verbosef("Device started")
 
+	tunnelHandlesMutex.Lock()
 	var i int32
 	for i = 0; i < math.MaxInt32; i++ {
 		if _, exists := tunnelHandles[i]; !exists {
@@ -126,26 +148,34 @@ func wgTurnOn(settings *C.char, tunFd int32) int32 {
 		}
 	}
 	if i == math.MaxInt32 {
-		unix.Close(dupTunFd)
+		tunnelHandlesMutex.Unlock()
+		dev.Close()
 		return -1
 	}
 	tunnelHandles[i] = tunnelHandle{dev, logger}
+	tunnelHandlesMutex.Unlock()
 	return i
 }
 
 //export wgTurnOff
 func wgTurnOff(tunnelHandle int32) {
+	tunnelHandlesMutex.Lock()
 	dev, ok := tunnelHandles[tunnelHandle]
+	if ok {
+		delete(tunnelHandles, tunnelHandle)
+	}
+	tunnelHandlesMutex.Unlock()
 	if !ok {
 		return
 	}
-	delete(tunnelHandles, tunnelHandle)
 	dev.Close()
 }
 
 //export wgSetConfig
 func wgSetConfig(tunnelHandle int32, settings *C.char) int64 {
+	tunnelHandlesMutex.Lock()
 	dev, ok := tunnelHandles[tunnelHandle]
+	tunnelHandlesMutex.Unlock()
 	if !ok {
 		return 0
 	}
@@ -162,11 +192,13 @@ func wgSetConfig(tunnelHandle int32, settings *C.char) int64 {
 
 //export wgGetConfig
 func wgGetConfig(tunnelHandle int32) *C.char {
-	device, ok := tunnelHandles[tunnelHandle]
+	tunnelHandlesMutex.Lock()
+	dev, ok := tunnelHandles[tunnelHandle]
+	tunnelHandlesMutex.Unlock()
 	if !ok {
 		return nil
 	}
-	settings, err := device.IpcGet()
+	settings, err := dev.IpcGet()
 	if err != nil {
 		return nil
 	}
@@ -175,7 +207,9 @@ func wgGetConfig(tunnelHandle int32) *C.char {
 
 //export wgBumpSockets
 func wgBumpSockets(tunnelHandle int32) {
+	tunnelHandlesMutex.Lock()
 	dev, ok := tunnelHandles[tunnelHandle]
+	tunnelHandlesMutex.Unlock()
 	if !ok {
 		return
 	}
@@ -195,7 +229,9 @@ func wgBumpSockets(tunnelHandle int32) {
 
 //export wgDisableSomeRoamingForBrokenMobileSemantics
 func wgDisableSomeRoamingForBrokenMobileSemantics(tunnelHandle int32) {
+	tunnelHandlesMutex.Lock()
 	dev, ok := tunnelHandles[tunnelHandle]
+	tunnelHandlesMutex.Unlock()
 	if !ok {
 		return
 	}
@@ -210,11 +246,15 @@ func wgVersion() *C.char {
 	}
 	for _, dep := range info.Deps {
 		if dep.Path == "golang.zx2c4.com/wireguard" {
-			parts := strings.Split(dep.Version, "-")
+			mod := dep
+			if dep.Replace != nil {
+				mod = dep.Replace
+			}
+			parts := strings.Split(mod.Version, "-")
 			if len(parts) == 3 && len(parts[2]) == 12 {
 				return C.CString(parts[2][:7])
 			}
-			return C.CString(dep.Version)
+			return C.CString(mod.Version)
 		}
 	}
 	return C.CString("unknown")

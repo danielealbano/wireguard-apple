@@ -41,6 +41,8 @@ class TunnelDetailTableViewController: NSViewController {
     static let peerFields: [TunnelViewModel.PeerField] = [
         .publicKey, .preSharedKey, .endpoint,
         .allowedIPs, .persistentKeepAlive,
+        .wsMode, .wstunnelTarget, .wsBearer, .wsMask, .wsTlsCa, .wsTlsCert,
+        .wsTlsKey, .wsTlsInsecure, .wsPingInterval, .wsBackoffMin, .wsBackoffMax,
         .rxBytes, .txBytes, .lastHandshakeTime
     ]
 
@@ -396,8 +398,10 @@ extension TunnelDetailTableViewController: NSTableViewDelegate {
             cell.key = tr(format: "macFieldKey (%@)", localizedKeyString)
             if field == .persistentKeepAlive {
                 cell.value = tr(format: "tunnelPeerPersistentKeepaliveValue (%@)", peerData[field])
-            } else if field == .preSharedKey {
+            } else if field == .preSharedKey || field == .wsBearer {
                 cell.value = tr("tunnelPeerPresharedKeyEnabled")
+            } else if field == .wsMask || field == .wsTlsInsecure {
+                cell.value = tr("tunnelPeerWsEnabled")
             } else {
                 cell.value = peerData[field]
             }

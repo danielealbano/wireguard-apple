@@ -52,7 +52,10 @@ extension TunnelConfiguration {
             }
 
             let interfaceSectionKeys: Set<String> = ["private_key", "listen_port", "fwmark"]
-            let peerSectionKeys: Set<String> = ["public_key", "preshared_key", "allowed_ip", "endpoint", "persistent_keepalive_interval", "last_handshake_time_sec", "last_handshake_time_nsec", "rx_bytes", "tx_bytes", "protocol_version"]
+            let peerSectionKeys: Set<String> = ["public_key", "preshared_key", "allowed_ip", "endpoint", "persistent_keepalive_interval",
+                                               "last_handshake_time_sec", "last_handshake_time_nsec", "rx_bytes", "tx_bytes", "protocol_version",
+                                               "transport", "ws_url", "wstunnel_target", "ws_bearer", "ws_mask", "ws_tls_ca", "ws_tls_cert",
+                                               "ws_tls_key", "ws_tls_insecure", "ws_ping_interval", "ws_backoff_min", "ws_backoff_max"]
 
             if parserState == .inInterfaceSection {
                 guard interfaceSectionKeys.contains(key) else {
@@ -179,6 +182,61 @@ extension TunnelConfiguration {
                 }
                 peer.lastHandshakeTime = Date(timeIntervalSince1970: lastHandshakeTimeSince1970)
             }
+        }
+        if let transportString = attributes["transport"] {
+            switch transportString {
+            case "udp":
+                break
+            case "websocket":
+                peer.wsMode = .websocket
+            case "wstunnel":
+                peer.wsMode = .wstunnel
+            default:
+                throw ParseError.peerHasInvalidTransport(transportString)
+            }
+        }
+        if let wsUrlString = attributes["ws_url"] {
+            guard let wsUrl = WsUrl(from: wsUrlString) else {
+                throw ParseError.peerHasInvalidEndpoint(wsUrlString)
+            }
+            peer.wsUrl = wsUrl
+        }
+        if let wstunnelTargetString = attributes["wstunnel_target"] {
+            guard Endpoint(from: wstunnelTargetString) != nil else {
+                throw ParseError.peerHasInvalidWsTunnelTarget(wstunnelTargetString)
+            }
+            peer.wstunnelTarget = wstunnelTargetString
+        }
+        if let wsBearerString = attributes["ws_bearer"] {
+            guard !wsBearerString.isEmpty else { throw ParseError.peerHasInvalidWsBearer }
+            peer.wsBearer = wsBearerString
+        }
+        if let wsMaskString = attributes["ws_mask"] {
+            peer.wsMask = wsMaskString == "true"
+        }
+        peer.wsTlsCa = attributes["ws_tls_ca"]
+        peer.wsTlsCert = attributes["ws_tls_cert"]
+        peer.wsTlsKey = attributes["ws_tls_key"]
+        if let wsTlsInsecureString = attributes["ws_tls_insecure"] {
+            peer.wsTlsInsecure = wsTlsInsecureString == "true"
+        }
+        if let wsPingIntervalString = attributes["ws_ping_interval"] {
+            guard let millis = UInt32(wsPingIntervalString) else {
+                throw ParseError.peerHasInvalidWsMillis(wsPingIntervalString)
+            }
+            peer.wsPingIntervalMs = millis == 0 ? nil : millis
+        }
+        if let wsBackoffMinString = attributes["ws_backoff_min"] {
+            guard let millis = UInt32(wsBackoffMinString) else {
+                throw ParseError.peerHasInvalidWsMillis(wsBackoffMinString)
+            }
+            peer.wsBackoffMinMs = millis == 0 ? nil : millis
+        }
+        if let wsBackoffMaxString = attributes["ws_backoff_max"] {
+            guard let millis = UInt32(wsBackoffMaxString) else {
+                throw ParseError.peerHasInvalidWsMillis(wsBackoffMaxString)
+            }
+            peer.wsBackoffMaxMs = millis == 0 ? nil : millis
         }
         return peer
     }

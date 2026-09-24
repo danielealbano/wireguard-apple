@@ -46,6 +46,7 @@ output
 
 # Wireguard specific
 Sources/WireGuardApp/Config/Developer.xcconfig
+Sources/WireGuardKitGo/.cache/
 
 # Vim
 .*.sw*

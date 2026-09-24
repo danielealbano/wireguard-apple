@@ -124,6 +124,10 @@ extension SettingsTableViewController {
         return settingsFieldsBySection[section].count
     }
 
+    override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
+        return section == 0 ? tr("aboutAttribution") : nil
+    }
+
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         switch section {
         case 0:

@@ -51,6 +51,32 @@ extension TunnelConfiguration.ParseError: WireGuardAppError {
             return (tr("alertInvalidPeerMessagePublicKeyDuplicated"), "")
         case .multipleEntriesForKey(let value):
             return (tr(format: "macAlertMultipleEntriesForKey (%@)", value), "")
+        case .peerHasInvalidWsMode(let value):
+            return (tr(format: "macAlertWsModeInvalid (%@)", value), "")
+        case .peerHasInvalidWsTunnelTarget(let value):
+            return (tr(format: "macAlertWsTunnelTargetInvalid (%@)", value), "")
+        case .peerHasInvalidWsBearer:
+            return (tr("macAlertWsBearerInvalid"), "")
+        case .peerHasInvalidWsBoolean(let value):
+            return (tr(format: "macAlertWsBooleanInvalid (%@)", value), "")
+        case .peerHasInvalidWsMillis(let value):
+            return (tr(format: "macAlertWsMillisInvalid (%@)", value), "")
+        case .peerHasEmptyWsValue(let key):
+            return (tr(format: "macAlertWsValueEmpty (%@)", key), "")
+        case .peerHasInvalidTransport(let value):
+            return (tr(format: "macAlertTransportInvalid (%@)", value), "")
+        case .peerWsUrlRequiresWsMode:
+            return (tr("macAlertWsUrlRequiresWsMode"), "")
+        case .peerWsModeForbidsHostPortEndpoint:
+            return (tr("macAlertWsModeForbidsHostPortEndpoint"), "")
+        case .peerInboundWstunnelForbidden:
+            return (tr("macAlertInboundWstunnelForbidden"), "")
+        case .peerWstunnelRequiresTarget:
+            return (tr("macAlertWstunnelRequiresTarget"), "")
+        case .peerWsTunnelTargetForbidden:
+            return (tr("macAlertWsTunnelTargetForbidden"), "")
+        case .peerHasWsKeyWithoutWsMode(let key):
+            return (tr(format: "macAlertWsKeyWithoutWsMode (%@)", key), "")
         }
     }
 }
