@@ -16,7 +16,7 @@ library) over a small cgo bridge.
 > logical and functional parity with the existing UDP handling, on BOTH platforms, consuming the
 > sibling `danielealbano/wireguard-go` fork (WebSocket transport + UDP/WebSocket multiplex bind),
 > with a config surface byte-compatible with the sibling `wireguard-tools` fork. Live-tunnel
-> validation (W6) is Manual Test, pending the Apple Developer Program enrollment (P1).
+> validation (W6, Manual Test): macOS live tunnel PASSED 2026-08-25; macOS network-switch and iOS on-device passes remain.
 
 ## Tech stack
 
@@ -253,7 +253,7 @@ ids with the Network Extensions capability — there is no entitlement-free path
 - **WebSocket/wstunnel transport support** (the fork's goal): **delivered in code by plan 1**
   (`docs/plans/1_websocket_wstunnel_transport_20260808170409.md`) — fork consumption, config
   model, all serialization surfaces, both platforms' UI, and the unit-test harness. Live-tunnel
-  validation on device (W6) is Manual Test, pending the Apple Developer Program enrollment (P1).
+  validation (W6, Manual Test): macOS live tunnel PASSED 2026-08-25; macOS network-switch and iOS on-device passes remain.
 - The high-level work breakdown (prerequisites, work items, inherited debt, open decisions) is
   tracked in `WORK_INDEX.md`.
 

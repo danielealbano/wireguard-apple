@@ -250,4 +250,5 @@ Per `PROJECT.md`, delivered by `docs/plans/1_websocket_wstunnel_transport_202608
 | Parity | per-platform path-change semantics (§3) preserved for WebSocket peers on BOTH platforms |
 | Tests | `WireGuardKitTests` unit bundle (model, serialization, view model, highlighter) |
 
-Remaining: on-device live-tunnel validation (Manual Test) once the ADP enrollment (P1) completes.
+Live-tunnel validation (Manual Test): the macOS live tunnel passed on 2026-08-25; the macOS
+network-switch pass and the iOS on-device pass remain.

@@ -13,7 +13,7 @@ preferences with the wg-quick config text in the **Keychain**.
 > logical and functional parity with the existing UDP handling, on BOTH iOS and macOS, consuming
 > the sibling **`danielealbano/wireguard-go` fork `v1.3.0`** (WebSocket transport + UDP+WebSocket
 > multiplex bind), with a config surface byte-compatible with the sibling `wireguard-tools` fork.
-> Live-tunnel validation (W6) is Manual Test, pending ADP enrollment (P1). Non-trivial work
+> Live-tunnel validation (W6, Manual Test): macOS live tunnel PASSED 2026-08-25; macOS network-switch and iOS on-device passes remain. Non-trivial work
 > proceeds via the development pipeline per `development_pipeline.md`; the canonical docs MUST be
 > kept current as decisions land.
 

@@ -23,7 +23,7 @@ Add per-peer WebSocket/wstunnel transport with **logical and functional parity w
 UDP handling, on BOTH iOS and macOS**, consuming the sibling `danielealbano/wireguard-go` fork,
 with a config surface byte-compatible with the sibling `wireguard-tools` fork. Overall status:
 **W1–W5 DELIVERED (plan 1, `docs/plans/1_websocket_wstunnel_transport_20260808170409.md`)**;
-W6 is PENDING P1 (ADP). The work items map onto the touch-points in `ARCHITECTURE.md` §7:
+W6 is IN PROGRESS. The work items map onto the touch-points in `ARCHITECTURE.md` §7:
 
 | ID | Item | Scope |
 |---|---|---|
@@ -32,7 +32,7 @@ W6 is PENDING P1 (ADP). The work items map onto the touch-points in `ARCHITECTUR
 | W3 | Serialization surfaces | `TunnelConfiguration+WgQuickConfig` (parse/serialize), `PacketTunnelSettingsGenerator` (UAPI generation), `TunnelConfiguration+UapiConfig` (readback), `highlighter.c` (macOS raw-text editor key set) |
 | W4 | UI | `TunnelViewModel` peer fields + the iOS and macOS tunnel editors |
 | W5 | Behavior parity | Preserve the per-platform path-change semantics for WebSocket peers (macOS: socket bump; iOS: re-resolve / temporary shutdown), MTU and on-demand behavior, on BOTH platforms |
-| W6 | Validation | **PENDING P1 (ADP)** — manual test pass on both platforms against a live WireGuard/wstunnel server, including network-switch scenarios (steps in plan 1 US9) |
+| W6 | Validation | **IN PROGRESS** — manual test pass on both platforms against a live WireGuard/wstunnel server, including network-switch scenarios (steps in plan 1 US9). **macOS live tunnel PASSED (2026-08-25)**: signed app + NE against the live wstunnel server — the NE dials the `wss://` endpoint in-process, the WireGuard handshake completes over the WebSocket, and LAN traffic flows through the tunnel. Remaining: macOS network-switch pass, iOS on-device pass |
 
 ## 3. Inherited debt
 
